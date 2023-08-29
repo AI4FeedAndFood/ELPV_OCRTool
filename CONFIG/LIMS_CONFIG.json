@@ -1,0 +1,55 @@
+{
+    "CLEAN_ZONE" : {
+        "N_d_echantillon" : "Numero d'echantillon",
+        "date_de_prelevement" : "Date de prelevement",
+        "nom" : "Nom",
+        "type_lot" : "Type de lot",
+        "variete" : "Variete",
+        "localisation_prelevement" : "Localisation du prelevement",
+        "N_de_scelle" : "Numero de scelle",
+        "N_de_lot" : "Numero de lot",
+        "parasite_recherche" : "Parasites",
+        "pays_d_origine" : "Pays d'origine"
+    },
+    "TOOL" : {
+        "input_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\test1",
+        "output_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\test1",
+        "copy_folder" : ""
+    },
+    "LIMS_CONVERTER" : {
+        "N_d_echantillon" : "CustomerReference",
+        "date_de_prelevement" : "M005",
+        "nom"  : "LN478",
+        "type_lot" : "IP001",
+        "variete" : "AAA036",
+        "localisation_prelevement" : "IP004",
+        "pays_d_origine" : "IP004",
+        "N_de_scelle" : "IP005",
+        "N_de_lot" : "AAM008",
+        "parasite_package" : "TestCode"
+    },
+    "UNIT_TEST_CODE" : {
+        "IP006" : "Clavibacter",
+        "IP007" : "Ralstonia solanacearum",
+
+        "IP001" : "Globodera pallida",
+        "IP002" : "Globodera rostochiensis",
+
+        "IP010" : "Meloidogyne chitwoodi",
+        "IP011" : "Meloidogyne fallax",
+        "IP0A1" : "Meloidogyne enterolobii",
+        "IP0B1" : "Naccobus aberrans",
+
+        "IP01A" : "PVY",
+        "IP01M" : "Jambe noire",
+        "IP01L" : "PLRV"
+    },
+    "PACKAGE_TEST_CODE": {
+        "PIP00" : ["IP006", "IP007"],
+        "PIP01" : ["IP001", "IP002"],
+        "PIP0Z" : ["IP010", "IP011", "IP0A1", "IP0B1"],
+        "PIPT3" : ["IP01A", "IP01M" ,"IP01L"],
+        "PIP0W" : ["IP01A", "IP01L"],
+        "PIPIG" : ["IP01M", "IP01A"]
+    }
+}
