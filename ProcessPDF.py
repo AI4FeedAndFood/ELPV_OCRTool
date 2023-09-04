@@ -54,12 +54,8 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
     else:
         format = "table"
     im = processed_image.copy()
-    plt.imshow(im, cmap="gray")
-    plt.show()
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
     dilate = cv2.dilate(~processed_image, kernel, iterations=interations)
-    plt.imshow(dilate, cmap="gray")
-    plt.show()
     contours,_ = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if len(contours) == 0:
         print("No contour found : Crop is impossible, processed image is return.")
@@ -72,8 +68,6 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
         box = cv2.boxPoints(rec)
         box = np.int0(box)
         cv2.drawContours(im, [box], 0, (0,0,255), 8)
-    plt.imshow(im, cmap="gray")
-    plt.show()
     if len(rectangles)==1:
         return format, rectangles[0]
     if len(rectangles)>1:
@@ -114,8 +108,6 @@ def crop_and_rotate(processed_image, rect):
     rect_points = np.intp(cv2.transform(np.array([box]), M))[0] # points of the box after rotation
     y0, y1, x0, x1 = _points_filter(rect_points) # get corners
     cropped_image = img_rot[y0:y1, x0:x1]
-    plt.imshow(cropped_image, cmap="gray")
-    plt.show()
     return cropped_image
 
 def delete_lines(bin_image): # Unused function wich delete (approximatly) lines on an image

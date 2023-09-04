@@ -242,7 +242,6 @@ def _list_process(check_word, candidate_sequence, candidate_index):
     max_jaro = 0.89
     max_stack = [False, None]
     for i_word, word in enumerate(candidate_sequence):
-        # print(check_word, word)
         jaro = jaro_distance(word.lower(), check_word.lower())
         if jaro == 1 :
             return True, candidate_index[i_word]
@@ -254,7 +253,6 @@ def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity
     def _get_match(start, start_seq, stop):
         for place in range(start, min(start+search_range+2, len(start_seq))):
             word = unidecode(start_seq[place])
-            # print(word)
             try:
                 index = word.rindex(stop)
                 res_word = word[index+len(stop):]
@@ -510,7 +508,8 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.4, transform_list=TRANSFORM)]
         checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
-        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:1]
+        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=False)[:3]
+        sorted_checkboxes = sorted([checkbox for checkbox in sorted_checkboxes], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:1]
         res_dict["OCR"] = {}
         res_dict["type"], res_dict["box"] = box_type,  [int(y_min), int(y_max), int(x_min), int(x_max)]
         res_dict["sequences"], res_dict["indexes"] = [], []
@@ -525,8 +524,6 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
             sequence = []
             c=0 # Make sure it's not looping forever
             while c<2:
-                # plt.imshow(new_area)
-                # plt.show()
                 c+=1
                 local_OCR = pytesseract.image_to_data(np.pad(new_area, 20,  constant_values=255), output_type=pytesseract.Output.DICT, config = '--oem 1 --psm 6')
                 sequence, index = _process_raw_text_to_sequence(local_OCR["text"])
@@ -541,7 +538,6 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
                 end_x = min(x_max, end_x)
                 new_area = searching_area[y1:y2, x2:end_x]
                 
-            
             if res_dict["sequences"] != []: # Stop the iteration over crosses 
                 break
         if OCRs_and_candidates_list == []:
@@ -560,8 +556,6 @@ def get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_
         res_dict = candidate_dict
         y_min, y_max, x_min, x_max = candidate_dict["box"]
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
-        # plt.imshow(searching_area)
-        # plt.show()
         checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
         sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)
         
@@ -714,7 +708,6 @@ def select_text(OCRs_and_candidates, zone): # More case by case function COULD B
 def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPER, ocr_config=TESSCONFIG):
     res_dict_per_zone = {}
     for zone, key_points in JSON_HELPER[format].items():
-        # print(f"\n NEW ZONE - {zone} :")
         landmark_boxes =  landmarks_dict[zone]["landmark"]
         conditions =  key_points["conditions"]
         
@@ -727,38 +720,21 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
             else : ocr_config[2] = whitelist
             candidate_OCR_list = get_candidate_local_OCR(cropped_image, landmark_boxes, key_points["relative_position"], format, ocr_config=ocr_config)
             candidate_OCR_list_filtered = condition_filter(candidate_OCR_list, key_points["key_sentences"], conditions)
-        # for d in candidate_OCR_list:
-        #     print("first candidate : ", d["sequences"])
         clean_OCRs_and_candidates = common_mistake_filter(candidate_OCR_list_filtered, zone)
-        # print("after condition : ", clean_OCRs_and_candidates[0]["sequences"])
         
         if (format, zone) == ("table", "parasite_recherche"):
             checkbox_dict = JSON_HELPER["checkbox"][format][zone]
             clean_OCRs_and_candidates = get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_image)
-            
-        # print(clean_OCRs_and_candidates[0]["indexes"])
-        # print("before select text : ", clean_OCRs_and_candidates[0]["sequences"])
+    
         OCR_and_text_full_dict = select_text(clean_OCRs_and_candidates, zone) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)            
         
         if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
              OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
         if OCR_and_text_full_dict["indexes"] != [] :
-            # print(OCR_and_text_full_dict["indexes"])
             if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
                 
         res_dict_per_zone[zone] = OCR_and_text_full_dict
-
-        print(f"{zone} : ", OCR_and_text_full_dict["sequences"])
-        # print("     choice : ", OCR_and_text_full_dict["choice"])
-        # print("index : ", OCR_and_text_full_dict["indexes"], "\n")
-        
-        # for i in OCR_and_text_full_dict["indexes"]:
-        #     try :
-        #         print(OCR_and_text_full_dict["OCR"]["text"][i], " : ", OCR_and_text_full_dict["OCR"]["conf"][i])
-        #     except TypeError:
-        #         for j in i:
-        #             print(OCR_and_text_full_dict["OCR"]["text"][j], " : ", OCR_and_text_full_dict["OCR"]["conf"][j])    
                     
     return res_dict_per_zone 
 

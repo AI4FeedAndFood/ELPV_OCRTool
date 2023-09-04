@@ -1,5 +1,6 @@
 import PySimpleGUI as sg
 import os
+import shutil
 import io
 import dicttoxml
 import json
@@ -44,37 +45,38 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
     lineLayout = []
         
     for zone, landmark_text_dict in image_dict.items():
-        clean_zone_name = conversion_dict[zone]
-        text = f"{clean_zone_name} : "
-        sequence = landmark_text_dict["sequences"]
-        conf=0
-        if conf !=[] and landmark_text_dict["indexes"] != []:
-            conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])           
-        if conf < conf_threshold : 
-            back_color = 'red'
-        else : 
-            back_color = sg.theme_input_background_color()
+        if not zone in ["client_name", "contract_name"]:
+            clean_zone_name = conversion_dict[zone]
+            text = f"{clean_zone_name} : "
+            sequence = landmark_text_dict["sequences"]
+            conf=0
+            if conf !=[] and landmark_text_dict["indexes"] != []:
+                conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])           
+            if conf < conf_threshold : 
+                back_color = 'red'
+            else : 
+                back_color = sg.theme_input_background_color()
+                
+            if zone == "parasite_recherche":
+                n_list = len(sequence)
+                seq = ""
+                found_col, not_found_col = checkboxs_for_parasite(PARASITES_LIST, sequence)
+                text = f"{clean_zone_name} : {n_list} proposé.s"
+                
+                lineLayout.append([sg.Text(text, s=(25,1)), sg.Column(found_col, size=(int(X_dim*0.15), int(Y_dim*0.035*len(found_col))), scrollable=True)])
+                # lineLayout.append([sg.HorizontalSeparator(key='sep')])
+                lineLayout.append([sg.Text("Ajouter si besoin", s=(25,1)), sg.Column(not_found_col, scrollable=True, size=(int(X_dim*0.15),
+                                                                                                                            int(Y_dim*0.035*len(not_found_col))))])
             
-        if zone == "parasite_recherche":
-            n_list = len(sequence)
-            seq = ""
-            found_col, not_found_col = checkboxs_for_parasite(PARASITES_LIST, sequence)
-            text = f"{clean_zone_name} : {n_list} proposé.s"
-            
-            lineLayout.append([sg.Text(text, s=(25,1)), sg.Column(found_col, size=(int(X_dim*0.15), int(Y_dim*0.035*len(found_col))), scrollable=True)])
-            # lineLayout.append([sg.HorizontalSeparator(key='sep')])
-            lineLayout.append([sg.Text("Ajouter si besoin", s=(25,1)), sg.Column(not_found_col, scrollable=True, size=(int(X_dim*0.15),
-                                                                                                                       int(Y_dim*0.035*len(not_found_col))))])
-        
-        elif len(sequence)>=INPUT_LENGTH:
-            lineLayout.append([sg.Text(text, s=(25,1)),
-                            sg.Multiline(sequence, background_color=back_color,
-                            key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, (len(sequence)//INPUT_LENGTH)+1), justification='center')])
-        else :
-            lineLayout.append([sg.Text(text, s=(25,1)),
-                            sg.I(sequence, background_color=back_color,
-                            key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='center')])
-                            # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
+            elif len(sequence)>=INPUT_LENGTH:
+                lineLayout.append([sg.Text(text, s=(25,1)),
+                                sg.Multiline(sequence, background_color=back_color,
+                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, (len(sequence)//INPUT_LENGTH)+1), justification='center')])
+            else :
+                lineLayout.append([sg.Text(text, s=(25,1)),
+                                sg.I(sequence, background_color=back_color,
+                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='center')])
+                                # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
         
     return lineLayout
     
@@ -87,11 +89,11 @@ def _getImageLayout(image):
     
     return imageLayout
 
-def _getClientContractLayout():
+def _getClientContractLayout(image_dict):
     
     ClientContractLayout = []
-    ClientContractLayout.append([sg.Text('N° de client', size=(25, 1)) ,sg.Input('', size=(INPUT_LENGTH, 1), enable_events=True, key='-client_name-')])
-    ClientContractLayout.append([sg.Text('N° de contrat', size=(25, 1)) ,sg.Input('', size=(INPUT_LENGTH, 1), enable_events=True, key='-contract_name-', background_color='light gray')])
+    ClientContractLayout.append([sg.Text('N° de client', size=(25, 1)) ,sg.Input(image_dict["client_name"]["sequences"], size=(INPUT_LENGTH, 1), enable_events=True, key='-client_name-')])
+    ClientContractLayout.append([sg.Text('N° de contrat', size=(25, 1)) ,sg.Input(image_dict["contract_name"]["sequences"], size=(INPUT_LENGTH, 1), enable_events=True, key='-contract_name-', background_color='light gray')])
     ClientContractLayout.append([sg.HorizontalSeparator(key='sep')])
     
     return ClientContractLayout
@@ -119,7 +121,7 @@ def ContractSuggestionWindow(values, mainWindow):
         location=(x, y), margins=(0, 0), finalize=True)
 
 def getMainLayout(image_dict, image, X_dim, Y_dim):
-    FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim), _getImageLayout(image), _getClientContractLayout()
+    FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim), _getImageLayout(image), _getClientContractLayout(image_dict)
     
     MainLayout = [
         [sg.Text("Attention : Veuillez bien vérifier les champs proposés"), sg.Push(), sg.Button("Consignes d'utilisation", k="-consignes-")],
@@ -141,7 +143,7 @@ def choice_overwrite_continue_popup(general_text, red_text, green_text):
     window.close()
     return event
 
-def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF): 
+def convertDictToLIMS(verified_dict, scan_name, CLIENT_CONTRACT_DF): 
     
     def _get_parasite_code(para_list):
         unit_code_list = []
@@ -160,63 +162,70 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
         test_code_list += list(set(unit_in_package) ^ set(unit_code_list)) # Add non-packed unit test
         
         return test_code_list
+
+    # Clean fields
+    scan_converted_dict = {
+                           }
+    scan_clean_dict = {}
+    para = []
+    for key, value  in verified_dict.items():
+        if "para_" in key and value == True:
+            para.append(key.split("para_")[-1])
+        if key[0] == "-":
+            scan_clean_dict[key] = value
+    scan_clean_dict["-parasite_recherche-"] = para
+    scan_clean_dict["-parasite_package-"] =_get_parasite_code(para)
+        
+    # Convert client and contract for the LIMS
     
-    clean_verified_dict = {}
-    converted_dict = {}
-    for scan,  verif_values in verified_dict.items():
-        # Clean fields
-        scan_converted_dict = {}
-        scan_clean_dict = {}
-        para = []
-        for key, value  in verif_values.items():
-            if "para_" in key and value == True:
-                para.append(key.split("para_")[-1])
-            if key[0] == "-":
-                scan_clean_dict[key] = value
-        scan_clean_dict["-parasite_recherche-"] = para
-        scan_clean_dict["-parasite_package-"] =_get_parasite_code(para)
-        clean_verified_dict[scan] = scan_clean_dict
-        
-        # Convert client and contract for the LIMS
-        
-        clientName, contractName = verif_values["-client_name-"], verif_values["-contract_name-"]
-        corresponding_row = CLIENT_CONTRACT_DF[(CLIENT_CONTRACT_DF["clientname"]==clientName) & (CLIENT_CONTRACT_DF["contractname"]==contractName)]
-        if len(corresponding_row) == 1:
-            scan_converted_dict["CustomerCode"] = list(corresponding_row["clientCode"])[0] #Found way to avoid an object return
-            scan_converted_dict["ContractCode"] = list(corresponding_row["contractcode"])[0]
-            scan_converted_dict["Devis"] = list(corresponding_row["Devis"])[0]
-            scan_converted_dict["EngamentJuridique"] = list(corresponding_row["EngamentJuridique"])[0]
-        else : 
-            scan_converted_dict["clientCode"] = ""
-            scan_converted_dict["contractCode"] = ""
-            scan_converted_dict["Devis"] = ""
-            scan_converted_dict["EngamentJuridique"] = ""
-        
-        for key, code in LIMSsettings["LIMS_CONVERTER"].items():
-            scan_converted_dict[code] = scan_clean_dict[f"-{key}-"]
-            
-        converted_dict[scan] = scan_converted_dict
+    clientName, contractName = verified_dict["-client_name-"], verified_dict["-contract_name-"]
+    corresponding_row = CLIENT_CONTRACT_DF[(CLIENT_CONTRACT_DF["clientname"]==clientName) & (CLIENT_CONTRACT_DF["contractname"]==contractName)]
+    if len(corresponding_row) == 1:
+        scan_converted_dict["CustomerCode"] = list(corresponding_row["clientCode"])[0] #Found way to avoid an object return
+        scan_converted_dict["ContractCode"] = list(corresponding_row["contractcode"])[0]
+        scan_converted_dict["Devis"] = list(corresponding_row["Devis"])[0]
+        scan_converted_dict["EngamentJuridique"] = list(corresponding_row["EngamentJuridique"])[0]
+    else :
+        scan_converted_dict["CustomerCode"] = ""
+        scan_converted_dict["ContractCode"] = ""
+        scan_converted_dict["Devis"] = ""
+        scan_converted_dict["EngamentJuridique"] = ""
+    
+    
+    scan_converted_dict.update({"Sample" :  {}})
+    additionalFiel_dict = {}
+    for key, code in LIMSsettings["LIMS_CONVERTER"].items():
+        if key == "N_d_echantillon":
+            scan_converted_dict["Sample"][code] = scan_clean_dict[f"-{key}-"]
+        else :
+            additionalFiel_dict[code] = scan_clean_dict[f"-{key}-"]
+    scan_converted_dict["Sample"]["AdditionalField"] = additionalFiel_dict
+    return scan_converted_dict
 
-    return converted_dict
-
-def runningSave(res_path, verified_imageDict, image_name):
-    json_name = f"{image_name}_runningVerified.json"
-    imageJson_save_path = os.path.join(res_path, json_name)
-    with open(imageJson_save_path, 'w', encoding='utf-8') as f:
-        json.dump(verified_imageDict, f,  ensure_ascii=False)
+def runningSave(save_path_json, verified_imageDict, image_name, res_dict):
+    for key, items in verified_imageDict.items() :
+        if key[0] == "-":
+            res_dict["RESPONSE"][image_name][key.strip("-")]["sequences"] = items
+    with open(save_path_json, 'w', encoding='utf-8') as f:
+        json.dump(res_dict, f,  ensure_ascii=False)
         
-def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, res_path):
-    clean_dict = convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF)
-    xml = dicttoxml.dicttoxml(clean_dict)
-    with open(os.path.join(res_path, "verified_xml.xml"), 'w', encoding='utf8') as result_file:
-        result_file.write(xml.decode())
-
-
+def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, copy_path=""):
+    for scan_name, scan_dict in verified_dict.items(): 
+        clean_dict = convertDictToLIMS(scan_dict, scan_name, CLIENT_CONTRACT_DF)
+        xml = dicttoxml.dicttoxml(clean_dict)
+        with open(os.path.join(xml_save_path, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
+            result_file.write(xml.decode())
+    
+    if copy_path:
+        os.rename(xml_save_path, os.path.join(copy_path, "verified_XML"))
+        if os.path.exists(os.path.join(copy_path, "verified_XML")):
+            os.remove(res_path)
+    
 def main():
     welcomeLayout = [
         [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL"]["input_folder"], key="-PATH-"), 
-         sg.FolderBrowse(button_color="dark green", )],
-        [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme"), sg.Push()]
+         sg.FolderBrowse(button_color="cornflower blue")],
+        [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme", button_color="medium sea green"), sg.Push()]
     ]
     window_title = GUIsettings["GUI"]["title"]
     welcomWindow = sg.Window(window_title, welcomeLayout, use_custom_titlebar=True)
@@ -234,6 +243,7 @@ def main():
                 else :
                     res_path = os.path.join(givenPath, "RES")
                     save_path_json = os.path.join(res_path, "res.json")
+                    xml_res_path = os.path.join(res_path, "verified_XML")
                     start = False # Set to true when scans are processed ; condition to start the verification process
                     end = False # Force the verification process to be done or abandonned (no infinit loop)
                     if os.path.exists(save_path_json):
@@ -258,9 +268,12 @@ def main():
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
                         images_names, res_dict_per_image, images = use_the_tool(givenPath)
                         with open(save_path_json, 'w', encoding='utf-8') as f:
-                            json.dump(res_dict_per_image, f,  ensure_ascii=False)
+                            json.dump(res_dict_per_image, f,  ensure_ascii=False) # Save the extraction json on RES
+                        if os.path.exists(xml_res_path): # Create or overwrite the verified_XML folder in RES
+                            shutil.rmtree(xml_res_path)
                         start = True
-                        
+                    if not os.path.exists(xml_res_path):
+                        os.makedirs(xml_res_path) 
                     while start and not end:
                         end = True
                         if images_names == []:
@@ -295,9 +308,7 @@ def main():
                                 if verif_event == sg.WINDOW_CLOSED:
                                     break
                                 if verif_event == "-consignes-":
-                                    sg.popup_scrolled(GUIsettings["UTILISATION"]["texte"], title="Consignes d'utilisation", size=(50,10))
-                                print(verif_event)
-                                
+                                    sg.popup_scrolled(GUIsettings["UTILISATION"]["texte"], title="Consignes d'utilisation", size=(50,10))                              
                                 if verif_event == "-client_name-":
                                     client_text = verif_values["-client_name-"]
                                     client_sugg = sorted([client for client in CLIENT_LIST if client_text.lower() in client.lower()])
@@ -338,20 +349,22 @@ def main():
                                     if contractSuggestionW : contractSuggestionW.close()
                                     if ClientSuggestionW : ClientSuggestionW.close()
                                     if (not verif_values["-client_name-"] in CLIENT_LIST or not verif_values["-contract_name-"] in CONTRACT_LIST_0) and not client_warning:
-                                            sg.popup_ok("ATTENTION : VEUILLEZ REMPLIR UN CODE CIENT ET UN CODE CONTRAT VALIDE", button_color="dark green")
+                                            sg.popup_ok("ATTENTION : VEUILLEZ REMPLIR UN CODE CIENT ET UN CODE CONTRAT VALIDE", button_color="dark green", 
+                                                        location = (X_loc+200, Y_loc+200))
                                             client_warning=True
                                     # If last image                                              
                                     elif n_image == len(images_names)-1:
                                         verified_dict[image_name] = verif_values
+                                        runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
                                         choice = sg.popup_ok("Il n'y a pas d'image suivante. Finir l'analyse ?", button_color="dark green")
                                         if choice == "OK":
-                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, res_path)
+                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, res_path, LIMSsettings["TOOL"]["copy_folder"])
                                             VerificationWindow.close()
                                             break
                                     else: 
                                         # Register the response and go to the following
                                         verified_dict[image_name] = verif_values
-                                        # runningSave(res_path, verif_values, image_name)
+                                        runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
                                         n_image +=1
                                 if verif_event == "<- Retour":
                                     n_image -=1
@@ -364,6 +377,7 @@ def main():
             
                 
 if __name__ == "__main__":
+    print("Attendez quelques instants, une page va s'ouvrir")
     
     SETTINGS_PATH = os.getcwd()
     GUIsettings = sg.UserSettings(path=os.path.join(SETTINGS_PATH, "CONFIG"), filename="GUI_config.ini", use_config_file=True, convert_bools_and_none=True)

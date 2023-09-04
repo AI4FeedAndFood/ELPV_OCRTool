@@ -148,8 +148,7 @@ def visualize(cropped_image, filtered_objects):
             detection["COLOR"],2)
     plt.imshow(image_with_detections, cmap='gray')
     plt.show(block=True)
-    # plt.pause(3)
-    # plt.close()
+
     
 def crop_image_and_sort_format(processed_image, show=False):
     format, rect = get_rectangle(processed_image)
@@ -165,8 +164,6 @@ def get_lines(image):
     for line in lines:
         x1,y1,x2,y2 = line[0]
         cv2.line(image,(x1,y1),(x2,y2),(255,0,0),3)
-    # plt.imshow(image)
-    # plt.show()
     return lines
     
 def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLATES, show=False):
@@ -184,10 +181,8 @@ def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLAT
             if x<x_im/2 and y_im*(1/4)<y<y_im*(3/4):
                 count+=1
         if count>5: # Threshold choosen arbitrary
-            # print("count : ",count)
             return "check"
         else:
-            # print("count : ", count)
             return "hand"
 
 if __name__ == "__main__":

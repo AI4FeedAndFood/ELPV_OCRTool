@@ -218,7 +218,7 @@
             "subregion" : [[0.30, 0.55], [0.45, 0.95]],
             "key_sentences" : [["57", "Pays", "d'origine",":"]],
             "relative_position" : [[[-0.4,2], [-0.1,6]]],
-            "conditions" : [["None", "pays"]]
+            "conditions" : [["NONE"]]
         },
         "parasite_recherche" : {
             "subregion" : [[0.25, 0.8], [0.16, 0.5]],

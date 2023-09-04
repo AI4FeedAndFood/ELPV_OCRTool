@@ -21,9 +21,9 @@
         "date_de_prelevement" : "M005",
         "nom"  : "LN478",
         "type_lot" : "IP001",
-        "variete" : "AAA036",
+        "variete" : "AAA036_variete",
         "localisation_prelevement" : "IP004",
-        "pays_d_origine" : "IP004",
+        "pays_d_origine" : "AAA036_pays_origine",
         "N_de_scelle" : "IP005",
         "N_de_lot" : "AAM008",
         "parasite_package" : "TestCode"

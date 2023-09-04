@@ -24,6 +24,7 @@ def TextExtractionTool_EVALUATE(path, save_path=r"C:\Users\CF6P\Desktop\cv_text\
     res_dict_per_image = {}
     res_dict_per_image["TESSERACT"] = TESSCONFIG
     res_dict_per_image["RESPONSE"] = {}
+    
     for i, image in enumerate(images,1):
         print(f"\n ------------ Image {i} is starting. time : {(time.time() - start_time)} -------------------")
         processed_image = binarized_image(image)
@@ -116,6 +117,7 @@ def TextCVTool(path, custom_config=TESSCONFIG):
     res_dict_per_image["RESPONSE"] = {}
     n_image = len(images)
     for i in tqdm(range(len(images))):
+        print("")
         image = images[i]
         name = images_names[i]
         processed_image = binarized_image(image)
@@ -132,9 +134,11 @@ def TextCVTool(path, custom_config=TESSCONFIG):
             format = "hand"
             OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
             OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-            
+                    # Set for te future
+        OCR_and_text_full_dict.update({"client_name" : {"sequences" : "" }})
+        OCR_and_text_full_dict.update({"contract_name" : {"sequences" : "" }})
         res_dict_per_image["RESPONSE"][name] = OCR_and_text_full_dict
-        saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict)
+        # saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict)
     return images_names, res_dict_per_image, images
 
 if __name__ == "__main__":
