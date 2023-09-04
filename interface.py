@@ -209,21 +209,21 @@ def runningSave(save_path_json, verified_imageDict, image_name, res_dict):
     with open(save_path_json, 'w', encoding='utf-8') as f:
         json.dump(res_dict, f,  ensure_ascii=False)
         
-def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, copy_path=""):
+def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, out_path=""):
     for scan_name, scan_dict in verified_dict.items(): 
         clean_dict = convertDictToLIMS(scan_dict, scan_name, CLIENT_CONTRACT_DF)
         xml = dicttoxml.dicttoxml(clean_dict)
         with open(os.path.join(xml_save_path, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
             result_file.write(xml.decode())
     
-    if copy_path:
-        os.rename(xml_save_path, os.path.join(copy_path, "verified_XML"))
-        if os.path.exists(os.path.join(copy_path, "verified_XML")):
+    if out_path:
+        os.rename(xml_save_path, os.path.join(out_path, "verified_XML"))
+        if os.path.exists(os.path.join(out_path, "verified_XML")):
             os.remove(res_path)
     
 def main():
     welcomeLayout = [
-        [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL"]["input_folder"], key="-PATH-"), 
+        [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL_PATH"]["input_folder"], key="-PATH-"), 
          sg.FolderBrowse(button_color="cornflower blue")],
         [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme", button_color="medium sea green"), sg.Push()]
     ]
@@ -358,7 +358,7 @@ def main():
                                         runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
                                         choice = sg.popup_ok("Il n'y a pas d'image suivante. Finir l'analyse ?", button_color="dark green")
                                         if choice == "OK":
-                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, res_path, LIMSsettings["TOOL"]["copy_folder"])
+                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, res_path, LIMSsettings["TOOL_PATH"]["output_folder"])
                                             VerificationWindow.close()
                                             break
                                     else: 
