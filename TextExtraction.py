@@ -205,12 +205,8 @@ def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, f
         if box_type == "default" : 
             relative_position = [[0,1], [0,1]]
         y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position, corr_ratio=cor)
-        # print(y_min, y_max, x_min, x_max)
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         searching_area = np.pad(searching_area, 5,  constant_values=255)
-        # print(box_type)
-        # plt.imshow(searching_area)
-        # plt.show()
         config = f' --oem {ocr_config[0]} --psm {ocr_config[1]} -c tessedit_char_whitelist=' + ocr_config[2]
         data = ocr_config[3]
         local_OCR = pytesseract.image_to_data(searching_area, output_type=pytesseract.Output.DICT, lang=data, config=config)
@@ -343,7 +339,7 @@ def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity
 
 def _clean_local_sequences(sequence_index_zips, key_main_sentences, conditions):
     strip_string_after_key = " |\[]_!.<>{}—;"
-    strip_string_others = "()*: |\/[]_!.<>{}—;-"
+    strip_string_others = "()*: |\/[]_!.<>{}—;-&"
     cleaned_candidate, cleaned_indexes = [], []
     key_sentences = [word for sentence in key_main_sentences for word in sentence]
     for candidate_sequence, candidate_indexes in sequence_index_zips:
@@ -508,8 +504,10 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.4, transform_list=TRANSFORM)]
         checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
-        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=False)[:3]
-        sorted_checkboxes = sorted([checkbox for checkbox in sorted_checkboxes], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:1]
+        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)[:3]
+        print(sorted_checkboxes)
+        sorted_checkboxes = sorted([checkbox for checkbox in sorted_checkboxes], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:2]
+        print(sorted_checkboxes)
         res_dict["OCR"] = {}
         res_dict["type"], res_dict["box"] = box_type,  [int(y_min), int(y_max), int(x_min), int(x_max)]
         res_dict["sequences"], res_dict["indexes"] = [], []
@@ -566,7 +564,7 @@ def get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_
             last_index = indexes[-1]
             parasite_dict["top"], parasite_dict["height"] = res_dict["OCR"]["top"][last_index], res_dict["OCR"]["height"][last_index]
             parasite_location.append(parasite_dict)
-        
+            
         parasite_list, parasite_index = [], []
         check_not_matched = []
         for checkbox in sorted_checkboxes:
@@ -579,19 +577,32 @@ def get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_
                     found = True
             if found == False:
                 check_not_matched.append(checkbox)
-        distance_list = []
+        
         for checkbox in check_not_matched:
+            distance_list = [] 
             for parasite_dict in parasite_location:
-                if parasite_dict["parasite"] not in parasite_list:            
-                    distance_list.append((abs((parasite_dict["top"]+parasite_dict["height"]/2)-(checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2), parasite_dict))
+                if parasite_dict["parasite"] not in parasite_list:
+                    dist = abs((parasite_dict["top"]+parasite_dict["height"]/2)-(checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2)
+                    if dist < 100:
+                        distance_list.append((dist, parasite_dict))
                 else: pass
-                
+
             if distance_list != []:
                 nearest_para = min(distance_list, key=lambda x: x[0])
                 parasite_list.append(nearest_para[1]["parasite"])
                 parasite_index.append(nearest_para[1]["indexes"])
-        
-        res_dict["sequences"]  = parasite_list
+                
+        if (["Meloidogyne chitwoodi"] in parasite_list) or (["Meloidogyne fallax"] in parasite_list):
+            parasite_list+= [["Meloidogyne chitwoodi"], ["Meloidogyne fallax"]]
+        if (["Globodera pallida"]) in parasite_list or (["Globodera rostochiensis"] in parasite_list):
+            parasite_list+= [["Globodera pallida"], ["Globodera rostochiensis"]]
+            
+        clean_para_list = []
+        for para in parasite_list:
+            if para not in clean_para_list:
+                clean_para_list.append(para)
+                
+        res_dict["sequences"]  = clean_para_list
         res_dict["indexes"] = parasite_index
         OCRs_and_candidates_list.append(res_dict)
     return OCRs_and_candidates_list    
@@ -642,7 +653,7 @@ def common_mistake_filter(OCRs_and_candidates, zone):
         clean_OCRs_and_candidates.append(candidate_dict)
     return clean_OCRs_and_candidates
 
-def select_text(OCRs_and_candidates, zone): # More case by case function COULD BE IMPROVE WITH RECURSIVITY
+def select_text(OCRs_and_candidates, zone): # Very case by case function ; COULD BE IMPROVE WITH RECURSIVITY
     final_OCRs_and_text_dict = []
     final_text_list, proba_text_list = [], []
     wordstrip = ' "|\_!§<>{}—;‘’'
@@ -735,6 +746,10 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
                 
         res_dict_per_zone[zone] = OCR_and_text_full_dict
+        
+        
+        print(zone, " : ", OCR_and_text_full_dict["sequences"])
+        print(candidate_OCR_list_filtered)
                     
     return res_dict_per_zone 
 
@@ -742,9 +757,9 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan1.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"
     images = PDF_to_images(path)
-    # images = images[1:]
+    images = images[0:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")

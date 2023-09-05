@@ -2,7 +2,7 @@
     "checkbox": {
         "check" : { 
             "type_lot" : {
-                "list" :  ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee", "Introduction", "Exportation"],
+                "list" :  ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee"],
                 "cross_path" : "reference_images\\cross_checkbox.png",
                 "empty_path" : "reference_images\\empty_checkbox.png"
             }
@@ -35,8 +35,8 @@
         
         "lot": ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee", "Introduction", "Exportation"],
 
-        "pays" : ["France", "Pays-Bas", "Belgique", "Hollande", "Allemagne", "Germany", "Espagne",
-                     "Italie" , "Suisse"]
+        "pays" : ["France", "Pays Bas", "Belgique", "Hollande", "Allemagne", "Germany", "Espagne",
+                     "Italie" , "Suisse", "Pays-Bas"]
     },
 
     "hand" : {
@@ -152,7 +152,7 @@
             "conditions" : [["after_key", [["56", "N°", "lot"], ["57", "Pays", "d'origine"]]]]
         },
         "pays_d_origine" : {
-            "subregion" : [[0.30, 0.55], [0.45, 0.95]],
+            "subregion" : [[0.40, 0.75], [0.45, 0.95]],
             "key_sentences" : [["57", "Pays", "d'origine",":"]],
             "relative_position" : [[[-0.4,2], [-0.1,6]]],
             "conditions" : [["list", "pays"]]

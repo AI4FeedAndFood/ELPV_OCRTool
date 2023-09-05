@@ -49,8 +49,8 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
             clean_zone_name = conversion_dict[zone]
             text = f"{clean_zone_name} : "
             sequence = landmark_text_dict["sequences"]
-            conf=0
-            if conf !=[] and landmark_text_dict["indexes"] != []:
+            conf= 100 # If empty must not be red
+            if landmark_text_dict["indexes"] != []:
                 conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])           
             if conf < conf_threshold : 
                 back_color = 'red'
@@ -209,7 +209,7 @@ def runningSave(save_path_json, verified_imageDict, image_name, res_dict):
     with open(save_path_json, 'w', encoding='utf-8') as f:
         json.dump(res_dict, f,  ensure_ascii=False)
         
-def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, out_path=""):
+def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, out_path="", xml_name="verified_XML"):
     for scan_name, scan_dict in verified_dict.items(): 
         clean_dict = convertDictToLIMS(scan_dict, scan_name, CLIENT_CONTRACT_DF)
         xml = dicttoxml.dicttoxml(clean_dict)
@@ -217,9 +217,13 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, ou
             result_file.write(xml.decode())
     
     if out_path:
-        os.rename(xml_save_path, os.path.join(out_path, "verified_XML"))
-        if os.path.exists(os.path.join(out_path, "verified_XML")):
-            os.remove(res_path)
+        new_xml =  os.path.join(out_path, xml_name)
+        i_test = 1
+        while os.path.exists(new_xml):
+            new_xml = os.path.join(out_path, xml_name+ f"_{i_test}")
+            i_test+=1
+        os.rename(xml_save_path, new_xml)
+        # shutil.rmtree(res_path)
     
 def main():
     welcomeLayout = [
@@ -252,8 +256,8 @@ def main():
                     else : continue_or_smash="overwrite"
                     if continue_or_smash==None : pass
                     if continue_or_smash == "continue":
-                        f  = open(save_path_json, encoding='utf-8')
-                        res_dict_per_image = json.load(f)
+                        json_file  = open(save_path_json, encoding='utf-8')
+                        res_dict_per_image = json.load(json_file)
                         images_names_dict = list(res_dict_per_image["RESPONSE"].keys())
                         images, images_names = getAllImages(pdfs, givenPath)
                         
@@ -267,8 +271,9 @@ def main():
                         print("------ START -----")
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
                         images_names, res_dict_per_image, images = use_the_tool(givenPath)
-                        with open(save_path_json, 'w', encoding='utf-8') as f:
-                            json.dump(res_dict_per_image, f,  ensure_ascii=False) # Save the extraction json on RES
+                        print("------ DONE -----")
+                        with open(save_path_json, 'w', encoding='utf-8') as json_file:
+                            json.dump(res_dict_per_image, json_file,  ensure_ascii=False) # Save the extraction json on RES
                         if os.path.exists(xml_res_path): # Create or overwrite the verified_XML folder in RES
                             shutil.rmtree(xml_res_path)
                         start = True
@@ -281,7 +286,7 @@ def main():
                         else :
                             verified_dict = {}
                             n_image = 0
-                            n_displayed = -1
+                            n_displayed= -1
                             X_dim, Y_dim = fit_the_screen(1)
                             X_loc, Y_loc = (10,10)
                             start = False
@@ -358,6 +363,7 @@ def main():
                                         runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
                                         choice = sg.popup_ok("Il n'y a pas d'image suivante. Finir l'analyse ?", button_color="dark green")
                                         if choice == "OK":
+                                            json_file.close() # Close the file
                                             finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, res_path, LIMSsettings["TOOL_PATH"]["output_folder"])
                                             VerificationWindow.close()
                                             break
@@ -365,12 +371,12 @@ def main():
                                         # Register the response and go to the following
                                         verified_dict[image_name] = verif_values
                                         runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
-                                        n_image +=1
+                                        n_image+=1
                                 if verif_event == "<- Retour":
-                                    n_image -=1
+                                    runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
+                                    n_image-=1
                                     if contractSuggestionW : contractSuggestionW.close()
                                     if ClientSuggestionW : ClientSuggestionW.close()
-                                    
                             VerificationWindow.close()                 
     
     welcomWindow.close()               
