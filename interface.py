@@ -82,18 +82,25 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
     
 def _getImageLayout(image):
     
-    searching_area = Image.fromarray(image).resize((int(image.shape[1]*1), int(image.shape[0]*1)))
+    searching_area = Image.fromarray(image).resize((int(image.shape[1]*0.58), int(image.shape[0]*0.58)))
     bio = io.BytesIO()
     searching_area.save(bio, format="PNG")
-    imageLayout = [[sg.Image(data=bio.getvalue(), key=f'scan', subsample=2)]]
+    imageLayout = [[sg.Image(data=bio.getvalue(), key=f'scan')]]
     
     return imageLayout
 
 def _getClientContractLayout(image_dict):
     
     ClientContractLayout = []
-    ClientContractLayout.append([sg.Text('N° de client', size=(25, 1)) ,sg.Input(image_dict["client_name"]["sequences"], size=(INPUT_LENGTH, 1), enable_events=True, key='-client_name-')])
-    ClientContractLayout.append([sg.Text('N° de contrat', size=(25, 1)) ,sg.Input(image_dict["contract_name"]["sequences"], size=(INPUT_LENGTH, 1), enable_events=True, key='-contract_name-', background_color='light gray')])
+    
+    client, contract = "", ""
+    if "client_name" in list(image_dict.keys()):
+        client = image_dict["client_name"]["sequences"]
+    if "contract_name" in list(image_dict.keys()):
+        contract = image_dict["contract_name"]["sequences"]
+        
+    ClientContractLayout.append([sg.Text('N° de client', size=(25, 1)) ,sg.Input(client, size=(INPUT_LENGTH, 1), enable_events=True, key='-client_name-')])
+    ClientContractLayout.append([sg.Text('N° de contrat', size=(25, 1)) ,sg.Input(contract, size=(INPUT_LENGTH, 1), enable_events=True, key='-contract_name-', background_color='light gray')])
     ClientContractLayout.append([sg.HorizontalSeparator(key='sep')])
     
     return ClientContractLayout
@@ -128,8 +135,8 @@ def getMainLayout(image_dict, image, X_dim, Y_dim):
         [sg.Push(), sg.B("<- Retour", s=10), sg.B("Valider ->", s=10), sg.Push()]
     ]
     
-    MainLayout.append([sg.Push(), sg.Column(ClientContractLayout + FiledsLayout , justification="r"), 
-            sg.Column(ImageLayout, scrollable=True, justification="l", size=(int(X_dim*0.7), int(0.9*Y_dim)))])
+    MainLayout.append([sg.Column(ClientContractLayout + FiledsLayout , justification="r"), 
+            sg.Column(ImageLayout, scrollable=True, justification="l", size=(int(X_dim*0.9), int(0.9*Y_dim)))])
     return MainLayout
 
 def choice_overwrite_continue_popup(general_text, red_text, green_text):

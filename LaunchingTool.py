@@ -5,6 +5,7 @@ import os
 import dicttoxml
 import numpy as np
 from tqdm import tqdm
+from datetime import datetime
 
 OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))
@@ -117,7 +118,7 @@ def TextCVTool(path, custom_config=TESSCONFIG):
     res_dict_per_image["RESPONSE"] = {}
     n_image = len(images)
     for i in tqdm(range(len(images))):
-        print("")
+        print(" Start at : ", datetime.now().strftime("%H:%M:%S"))
         image = images[i]
         name = images_names[i]
         processed_image = binarized_image(image)

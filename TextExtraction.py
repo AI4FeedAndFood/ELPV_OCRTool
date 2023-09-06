@@ -505,9 +505,7 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
         templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.4, transform_list=TRANSFORM)]
         checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
         sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)[:3]
-        print(sorted_checkboxes)
         sorted_checkboxes = sorted([checkbox for checkbox in sorted_checkboxes], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:2]
-        print(sorted_checkboxes)
         res_dict["OCR"] = {}
         res_dict["type"], res_dict["box"] = box_type,  [int(y_min), int(y_max), int(x_min), int(x_max)]
         res_dict["sequences"], res_dict["indexes"] = [], []
@@ -748,8 +746,8 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
         res_dict_per_zone[zone] = OCR_and_text_full_dict
         
         
-        print(zone, " : ", OCR_and_text_full_dict["sequences"])
-        print(candidate_OCR_list_filtered)
+        # print(zone, " : ", OCR_and_text_full_dict["sequences"])
+        # print(candidate_OCR_list_filtered)
                     
     return res_dict_per_zone 
 
