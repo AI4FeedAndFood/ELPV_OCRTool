@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import pytesseract
 import json
 from copy import deepcopy
@@ -192,7 +191,6 @@ def _get_area(cropped_image, box, relative_position, corr_ratio=1.15):
     (y_min, x_min) , (y_max, x_max) = np.array([[y_min, x_min], [y_max, x_max]]).astype(int)[:2]
     return y_min, y_max, x_min, x_max
 
-            
 def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, format, ocr_config=TESSCONFIG):
     OCRs_and_candidates_list = []
     for n_landmark, relative_position in enumerate(relative_positions):
@@ -238,7 +236,6 @@ def _list_process(check_word, candidate_sequence, candidate_index):
         if jaro == 1 :
             return True, candidate_index[i_word], 1
         elif jaro > max_jaro:
-            print(check_word, word, jaro)
             max_stack = [True, candidate_index[i_word], jaro]
     return max_stack
 
@@ -466,8 +463,7 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
                         if status: # If a check word is found : stack it
                             check_indexes.append(index)
                             jaro_elmt.append(jaro)
-                        if len(check_indexes) == len(check_words) and check_elmt not in new_sequence: # All word of the checking elements are in the same candidate sequence
-                            print(check_elmt, jaro_elmt)
+                        if len(check_indexes) == len(check_words) and check_elmt not in new_sequence: # All word of the checking elements are in the same candidate sequence                          print(check_elmt, jaro_elmt)
                             new_sequence.append([check_elmt])
                             new_indexes.append(check_indexes)
                             matched_jaro.append(min(jaro_elmt))
@@ -480,7 +476,6 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
                     new_sequence , new_indexes, jaro = zip(*sorted_res)
                     if mode == "single":
                         new_sequence, new_indexes = [new_sequence[0]], [new_indexes[0]]
-                print("res : ", new_sequence)
                     
             new_sequence_res, new_indexes_res = [], []            
             for i in range(len(new_sequence)):
@@ -638,8 +633,7 @@ def common_mistake_filter(OCRs_and_candidates, zone):
                             sequence[i] = word.replace(",",".")
                 if i>0: # Filter by confidance
                     Pi0 = candidate_dict["OCR"]["conf"][index[i]]
-                    if Pi0 <0: # Delete very unreliable word
-                        print(Pi0, word)            
+                    if Pi0 <0: # Delete very unreliable word          
                         to_del.append(i)
                     if len(word)==1 : # Delete single word 
                         if candidate_dict["OCR"]["conf"][index[i-1]] - Pi0 > 35 and Pi0 < 55: # Delete confidence drop 
@@ -710,7 +704,6 @@ def select_text(OCRs_and_candidates, zone): # Very case by case function ; COULD
                 final_text_list.append(res_seq)
                 final_OCRs_and_text_dict.append(res_dict)
             
-
     if final_text_list == [[]]: # No response
         final_OCRs_and_text_dict[0]["choice"] = "empty"
         return final_OCRs_and_text_dict[0]
@@ -753,14 +746,8 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
             if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
                 
-        res_dict_per_zone[zone] = OCR_and_text_full_dict
-        
-        
-        # print(zone, " : ", OCR_and_text_full_dict["sequences"])
-        # print(candidate_OCR_list_filtered)
-                    
+        res_dict_per_zone[zone] = OCR_and_text_full_dict                    
     return res_dict_per_zone 
-
 
 if __name__ == "__main__":
 

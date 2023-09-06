@@ -1,5 +1,5 @@
 # Python3 implementation of above approach
-from math import floor, ceil
+from math import floor
  
 # Function to calculate the
 # Jaro Similarity of two s

@@ -1,9 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
 import pdf2image
-import json
-from copy import copy
 
 # Link to the poppler wich open pdfs
 POPPLER_PATH = r"exterior_program\poppler\poppler-23.01.0\Library\bin"

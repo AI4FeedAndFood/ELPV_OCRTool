@@ -38,13 +38,10 @@ class Template:
     def transform(cls, template, transform):
         return [trans(template) for trans in transform]
 
-            
-        
 TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
              lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))] # Maybe can be cleaner with a transform class
 TEMPLATES = [Template(image_path=empty_checkbox_path, label="empty", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM),
              Template(image_path=cross_checkbox_path, label="cross", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM)]
-
 
 def get_iou(a, b, epsilon=1e-5):
     """ Given two boxes `a` and `b` defined as a list of four numbers:
@@ -148,8 +145,7 @@ def visualize(cropped_image, filtered_objects):
             detection["COLOR"],2)
     plt.imshow(image_with_detections, cmap='gray')
     plt.show(block=True)
-
-    
+   
 def crop_image_and_sort_format(processed_image, show=False):
     format, rect = get_rectangle(processed_image)
     cropped_image = crop_and_rotate(processed_image, rect)
