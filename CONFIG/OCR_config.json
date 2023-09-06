@@ -62,13 +62,13 @@
             "subregion" : [[0.25, 0.4], [0, 0.47]],
             "key_sentences" : [["51", "Type", "de", "lot","(*)", ":"], ["5", "Identification", "de", "l'echantillon"]],
             "relative_position" : [[[-0.5,5], [-0.2,3]], [[1,5], [-0.1,2]]],
-            "conditions" : [["list", "lot"]]
+            "conditions" : [["list", "lot", "single"]]
         },
         "variete" : {
             "subregion" : [[0.3, 0.6], [0, 0.47]],
             "key_sentences" : [["65", "Variete", ":"], ["6", "Description", "de", "l'echantillon"]],
             "relative_position" : [[[-0.5,3], [0,5]], [[1.5,7], [-0.2,2]]],
-            "conditions" : [["list", "variete"]]
+            "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
             "subregion" : [[0.25, 0.5], [0.45,0.95]],
@@ -92,13 +92,13 @@
             "subregion" : [[0.30, 0.55], [0.45, 0.95]],
             "key_sentences" : [["57", "Pays", "d'origine",":"]],
             "relative_position" : [[[-0.4,2], [-0.1,6]]],
-            "conditions" : [["list", "pays"]]
+            "conditions" : [["list", "pays", "single"]]
         },
         "parasite_recherche" : {
             "subregion" : [[0.45, 0.95], [0.2, 0.7]],
             "key_sentences" : [["72", "Parasite", "recherche", "(*)"]],
             "relative_position" : [[[1,16], [-0.1,1.7]]],
-            "conditions" : [["list", "parasite"]]
+            "conditions" : [["list", "parasite", "multiple"]]
         }
     },
 
@@ -131,7 +131,7 @@
             "subregion" : [[0.55, 0.75], [0, 0.45]],
             "key_sentences" : [["65", "Variete", ":"], ["6", "Description", "de", "l'echantillon"]],
             "relative_position" : [[[-0.3,3], [0,5]], [[1,8], [-0.2,1.5]]],
-            "conditions" : [["list", "variete"]]
+            "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
             "subregion" : [[0.4, 0.55], [0.45,1]],
@@ -155,13 +155,13 @@
             "subregion" : [[0.40, 0.75], [0.45, 0.95]],
             "key_sentences" : [["57", "Pays", "d'origine",":"]],
             "relative_position" : [[[-0.4,2], [-0.1,6]]],
-            "conditions" : [["list", "pays"]]
+            "conditions" : [["list", "pays", "single"]]
         },
         "parasite_recherche" : {
             "subregion" : [[0.65, 1], [0.25, 0.6]],
             "key_sentences" : [["72", "Parasite", "recherche", "(*)"]],
             "relative_position" : [[[1,25], [-1,2]]],
-            "conditions" : [["list", "parasite"]]
+            "conditions" : [["list", "parasite", "multiple"]]
         }
     },
 
@@ -194,7 +194,7 @@
             "subregion" : [[0.3, 0.5], [0, 0.25]],
             "key_sentences" : [["Variete"]],
             "relative_position" : [[[-0.2,3.5], [-0.2,3.5]]],
-            "conditions" : [["list","variete"]]
+            "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
             "subregion" : [[0.6, 0.9], [0,0.5]],
@@ -224,7 +224,7 @@
             "subregion" : [[0.25, 0.8], [0.16, 0.5]],
             "key_sentences" : [["Cocher", "ONR", "concernés"]],
             "relative_position" : [[[1,45], [-0.5, 1.5]]],
-            "conditions" : [["list", "parasite"]]
+            "conditions" : [["list", "parasite", "multiple"]]
         }
     }
 }

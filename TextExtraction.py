@@ -25,17 +25,17 @@ OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
 def _text_filter(text):
     for i, word in enumerate(text):
         if "£" in word:
-            text[i] = word.replace("£", "E")
+            text[i] = text[i].replace("£", "E")
         if "N*" in word:
-            text[i] = word.replace("N*", "N°")
+            text[i] = text[i].replace("N*", "N°")
         if "{" in word:
-            text[i] = word.replace("{", "(")
+            text[i] = text[i].replace("{", "(")
         if "{" in word:
-            text[i] = word.replace("{", ")")
+            text[i] = text[i].replace("{", ")")
         if "’" in word:
-            text[i] = word.replace("’", "'")
+            text[i] = text[i].replace("’", "'")
         if "!" in word:
-            text[i] = word.replace("!", "l")
+            text[i] = text[i].replace("!", "l")
     return text 
 
 def _find_landmarks_index(key_sentences, text): # Could be optimized
@@ -147,14 +147,10 @@ def get_data_and_landmarks(format, cropped_image, JSON_HELPER=OCR_HELPER, ocr_co
                         x, y = x_relative + int(xmin), y_relative+int(ymin)
                         w = abs(OCR_default_region['left'][i_max-1] - x_relative + OCR_default_region['width'][i_max-1])
                         h = abs(int(np.mean(np.array(OCR_default_region['height'][i_min:i_max]))))
-                        # plt.imshow(cropped_image[y:y+h, x:w+x])
-                        # plt.show()
                         landmarks_coord[i] = ("found", [x,y,w,h], cor)
                     else : 
                         landmarks_coord[i] = ("default", [int(xmin), int(ymin), int(xmax-xmin), int(ymax-ymin)], cor)
         res_landmarks[zone] = {"landmark" : landmarks_coord}
-    # plt.imshow(cropped_image, cmap="gray")
-    # plt.show()
     return OCR_data, res_landmarks
 
 def _process_raw_text_to_sequence(OCR_text):
@@ -236,13 +232,14 @@ def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, f
 
 def _list_process(check_word, candidate_sequence, candidate_index):
     max_jaro = 0.89
-    max_stack = [False, None]
+    max_stack = [False, None, 0]
     for i_word, word in enumerate(candidate_sequence):
         jaro = jaro_distance(word.lower(), check_word.lower())
         if jaro == 1 :
-            return True, candidate_index[i_word]
+            return True, candidate_index[i_word], 1
         elif jaro > max_jaro:
-            max_stack = [True, candidate_index[i_word]]
+            print(check_word, word, jaro)
+            max_stack = [True, candidate_index[i_word], jaro]
     return max_stack
 
 def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity=0.9):
@@ -454,23 +451,36 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
 
             if condition[0] == "list": # In this case itertion is over element in the condition list
                 concat_seq, concat_index = [], []
+                matched_jaro = []
+                mode = condition[2]
                 for candidate_sequence, candidate_index in zipped_seq:
                     concat_seq+=candidate_sequence
                     concat_index+= candidate_index
                 check_list = OCR_HELPER["lists"][condition[1]]
                 for check_elmt in check_list:
                     check_indexes=[]
+                    jaro_elmt=[]
                     check_words = check_elmt.split(" ")
                     for check_word in check_words:
-                        status, index = _list_process(check_word, concat_seq, concat_index)
-                        if status:
+                        status, index, jaro = _list_process(check_word, concat_seq, concat_index)
+                        if status: # If a check word is found : stack it
                             check_indexes.append(index)
+                            jaro_elmt.append(jaro)
                         if len(check_indexes) == len(check_words) and check_elmt not in new_sequence: # All word of the checking elements are in the same candidate sequence
+                            print(check_elmt, jaro_elmt)
                             new_sequence.append([check_elmt])
                             new_indexes.append(check_indexes)
-                sorted_by_id = sorted(zip(new_sequence, new_indexes), key=lambda x: x[1][0])
-                if sorted_by_id != []:
-                    new_sequence , new_indexes = zip(*sorted_by_id)
+                            matched_jaro.append(min(jaro_elmt))
+                if mode == "multiple": # Return all found elements sorted by index
+                    sorted_res = sorted(zip(new_sequence, new_indexes, matched_jaro), key=lambda x: x[1][0])
+                if mode == "single":
+                    sorted_res = sorted(zip(new_sequence, new_indexes, matched_jaro), key=lambda x: x[2], reverse=True)
+                
+                if sorted_res != []:
+                    new_sequence , new_indexes, jaro = zip(*sorted_res)
+                    if mode == "single":
+                        new_sequence, new_indexes = [new_sequence[0]], [new_indexes[0]]
+                print("res : ", new_sequence)
                     
             new_sequence_res, new_indexes_res = [], []            
             for i in range(len(new_sequence)):
@@ -755,9 +765,9 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"
     images = PDF_to_images(path)
-    images = images[0:]
+    images = images[6:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")
