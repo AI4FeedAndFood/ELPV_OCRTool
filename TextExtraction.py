@@ -752,9 +752,9 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"
     images = PDF_to_images(path)
-    images = images[6:]
+    images = images[7:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")

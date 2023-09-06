@@ -202,10 +202,11 @@ def convertDictToLIMS(verified_dict, scan_name, CLIENT_CONTRACT_DF):
     scan_converted_dict.update({"Sample" :  {}})
     additionalFiel_dict = {}
     for key, code in LIMSsettings["LIMS_CONVERTER"].items():
-        if key == "N_d_echantillon":
-            scan_converted_dict["Sample"][code] = scan_clean_dict[f"-{key}-"]
-        else :
-            additionalFiel_dict[code] = scan_clean_dict[f"-{key}-"]
+        if f"-{key}-" in list(scan_clean_dict.keys()):
+            if key == "N_d_echantillon":
+                scan_converted_dict["Sample"][code] = scan_clean_dict[f"-{key}-"]
+            else :
+                additionalFiel_dict[code] = scan_clean_dict[f"-{key}-"]
     scan_converted_dict["Sample"]["AdditionalField"] = additionalFiel_dict
     return scan_converted_dict
 
@@ -387,8 +388,7 @@ def main():
                             VerificationWindow.close()                 
     
     welcomWindow.close()               
-            
-                
+                         
 if __name__ == "__main__":
     print("Attendez quelques instants, une page va s'ouvrir")
     

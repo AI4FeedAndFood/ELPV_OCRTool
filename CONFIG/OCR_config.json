@@ -176,19 +176,13 @@
             "subregion" : [[0.65, 0.85], [0, 0.8]],
             "key_sentences" : [["DATE", "DU", "PRELEVEMENT"]],
             "relative_position" : [[[-0.5,1.5], [0,3]]],
-            "conditions" : [["after_key", [["DATE", "DU", "PRELEVEMENT"], ["LIEU", "DU", "PRELEVEMENT"]]]]
+            "conditions" : [["date"]]
         },
         "nom" : {
             "subregion" : [[0.05, 0.25], [0.67, 0.95]],
             "key_sentences" : [["Producteur"], ["Adresse"]],
             "relative_position" : [[[1,8], [-1,2]], [[-2,2], [-1,2]]],
             "conditions" : [["after_key", [["Adresse", "Producteur", " Producteur Adresse"], []]]]
-        },
-        "type_lot" : {
-            "subregion" : [[0.3, 0.5], [0, 0.3]],
-            "key_sentences" : [["51", "Type", "de", "lot","(*)", ":"]],
-            "relative_position" : [[[1,3], [0,4.5]]],
-            "conditions" : [["NONE"]]
         },
         "variete" : {
             "subregion" : [[0.3, 0.5], [0, 0.25]],
@@ -207,18 +201,6 @@
             "key_sentences" : [["Scellé"], ["N°","de", "scelle"]],
             "relative_position" : [[[-0.2,5], [0,8]], [[4,23], [-0.5,1.5]]],
             "conditions" : [["after_key", [["Scelle", ":"], ["ECH"]]]]
-        },
-        "N_de_lot" : {
-            "subregion" : [[0.3, 0.6], [0.4, 0.95]],
-            "key_sentences" : [["56", "N°", "de", "lot", ":"]],
-            "relative_position" : [[[-0.4,3], [-0.1,40]]],
-            "conditions" : [["NONE"]]
-        },
-        "pays_d_origine" : {
-            "subregion" : [[0.30, 0.55], [0.45, 0.95]],
-            "key_sentences" : [["57", "Pays", "d'origine",":"]],
-            "relative_position" : [[[-0.4,2], [-0.1,6]]],
-            "conditions" : [["NONE"]]
         },
         "parasite_recherche" : {
             "subregion" : [[0.25, 0.8], [0.16, 0.5]],
