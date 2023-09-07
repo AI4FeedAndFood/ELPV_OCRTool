@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import pdf2image
+import matplotlib.pyplot as plt
 
 # Link to the poppler wich open pdfs
 POPPLER_PATH = r"exterior_program\poppler\poppler-23.01.0\Library\bin"
@@ -46,8 +47,12 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
         format (str) : "table" or "other"
         rectangle (cv2.MinAreaRect) : The biggest rectangle of text found in the image
     """
-    if interations == 2:
-        format = "other"
+    y, x = processed_image.shape[:2]
+    
+    if x>y:
+        format = "landscape"
+    elif interations == 2:
+        format = "hand_or_check"
     else:
         format = "table"
     im = processed_image.copy()
@@ -57,14 +62,16 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
     if len(contours) == 0:
         print("No contour found : Crop is impossible, processed image is return.")
         return []
-    
-    y, x = processed_image.shape[:2]
+
     rectangles = [cv2.minAreaRect(contour) for contour in contours]
     rectangles = [rect for rect in rectangles if rect[1][0]*rect[1][1]>x*y/12]
     for rec in rectangles:
         box = cv2.boxPoints(rec)
         box = np.int0(box)
         cv2.drawContours(im, [box], 0, (0,0,255), 8)
+    # print(format)
+    # plt.imshow(im)
+    # plt.show()
     if len(rectangles)==1:
         return format, rectangles[0]
     if len(rectangles)>1:

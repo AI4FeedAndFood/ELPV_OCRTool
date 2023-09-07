@@ -4,14 +4,15 @@ import json
 from copy import deepcopy
 from unidecode import unidecode
 import cv2
+import matplotlib.pyplot as plt
 
 import locale
 locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from ProcessCheckboxes import crop_image_and_sort_format, get_format_or_checkboxes, get_lines, Template
-from ProcessPDF import PDF_to_images, binarized_image, delete_lines
+from ProcessCheckboxes import crop_image_and_sort_format, get_format_or_checkboxes, Template
+from ProcessPDF import PDF_to_images, binarized_image
 from JaroDistance import jaro_distance
 
 whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
@@ -201,6 +202,8 @@ def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, f
         y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position, corr_ratio=cor)
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         searching_area = np.pad(searching_area, 5,  constant_values=255)
+        plt.imshow(searching_area)
+        plt.show()
         config = f' --oem {ocr_config[0]} --psm {ocr_config[1]} -c tessedit_char_whitelist=' + ocr_config[2]
         data = ocr_config[3]
         local_OCR = pytesseract.image_to_data(searching_area, output_type=pytesseract.Output.DICT, lang=data, config=config)
@@ -259,6 +262,7 @@ def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity
     matching_key_place_stack, matching_word_place_stack = [[], []], [[], []]
     # Get the begining and and the end of the sequence to take what is between
     for _, candidate_sequence in enumerate(clean_sequences):
+        print(candidate_sequence)
         matching_key_place, matching_word_place = [[], []], [[], []] # Store the matching key index and the place on the candidate seq
         for state, key_seq in enumerate(key_sequences):
             for i_key, key_word in enumerate(key_seq):
@@ -741,20 +745,20 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
         OCR_and_text_full_dict = select_text(clean_OCRs_and_candidates, zone) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)            
         
         if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
-             OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
+            OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
         if OCR_and_text_full_dict["indexes"] != [] :
             if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-                
+        print(OCR_and_text_full_dict["sequences"])
         res_dict_per_zone[zone] = OCR_and_text_full_dict                    
     return res_dict_per_zone 
 
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf"
     images = PDF_to_images(path)
-    images = images[7:]
+    images = images[0:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")

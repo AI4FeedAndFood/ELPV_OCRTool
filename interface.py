@@ -9,7 +9,7 @@ import pandas as pd
 from screeninfo import get_monitors
 from PIL import Image
 
-from LaunchingTool import getAllPDFs, TextCVTool, getAllImages
+from LaunchTool import getAllPDFs, TextCVTool, getAllImages
 
 def is_valid_path(folderpath):
     if folderpath and os.path.exists(folderpath):
@@ -171,8 +171,6 @@ def convertDictToLIMS(verified_dict, scan_name, CLIENT_CONTRACT_DF):
         return test_code_list
 
     # Clean fields
-    scan_converted_dict = {
-                           }
     scan_clean_dict = {}
     para = []
     for key, value  in verified_dict.items():
@@ -184,33 +182,35 @@ def convertDictToLIMS(verified_dict, scan_name, CLIENT_CONTRACT_DF):
     scan_clean_dict["-parasite_package-"] =_get_parasite_code(para)
         
     # Convert client and contract for the LIMS
+    stack_dict = {}
+    stack_dict.update({"root" : {}})
+    stack_dict.update({"Sample" : {}})
+    stack_dict.update({"AdditionalField" : {}})
     
     clientName, contractName = verified_dict["-client_name-"], verified_dict["-contract_name-"]
     corresponding_row = CLIENT_CONTRACT_DF[(CLIENT_CONTRACT_DF["clientname"]==clientName) & (CLIENT_CONTRACT_DF["contractname"]==contractName)]
     if len(corresponding_row) == 1:
-        scan_converted_dict["CustomerCode"] = list(corresponding_row["clientCode"])[0] #Found way to avoid an object return
-        scan_converted_dict["ContractCode"] = list(corresponding_row["contractcode"])[0]
-        scan_converted_dict["Devis"] = list(corresponding_row["Devis"])[0]
-        scan_converted_dict["EngamentJuridique"] = list(corresponding_row["EngamentJuridique"])[0]
+        scan_clean_dict["-CustomerCode-"] = list(corresponding_row["clientCode"])[0] #Found way to avoid an object return
+        scan_clean_dict["-ContractCode-"] = list(corresponding_row["contractcode"])[0]
+        scan_clean_dict["-Devis-"] = list(corresponding_row["Devis"])[0]
+        scan_clean_dict["-EngamentJuridique-"] = list(corresponding_row["EngamentJuridique"])[0]
     else :
-        scan_converted_dict["CustomerCode"] = ""
-        scan_converted_dict["ContractCode"] = ""
-        scan_converted_dict["Devis"] = ""
-        scan_converted_dict["EngamentJuridique"] = ""
+        scan_clean_dict["-CustomerCode-"] = ""
+        scan_clean_dict["-ContractCode-"] = ""
+        scan_clean_dict["-Devis-"] = ""
+        scan_clean_dict["-EngamentJuridique-"] = ""
     
-    
-    scan_converted_dict.update({"Sample" :  {}})
-    additionalFiel_dict = {}
-    for key, code in LIMSsettings["LIMS_CONVERTER"].items():
+    for key, name_code in LIMSsettings["LIMS_CONVERTER"].items():
         if f"-{key}-" in list(scan_clean_dict.keys()):
-            if key == "N_d_echantillon":
-                scan_converted_dict["Sample"][code] = scan_clean_dict[f"-{key}-"]
-            else :
-                additionalFiel_dict[code] = scan_clean_dict[f"-{key}-"]
-    scan_converted_dict["Sample"]["AdditionalField"] = additionalFiel_dict
-    return scan_converted_dict
+            dict_name, code = name_code
+            stack_dict[dict_name][code] = scan_clean_dict[f"-{key}-"]
+    stack_dict["Sample"]["AdditionalField"] = stack_dict["AdditionalField"]
+    stack_dict["root"]["Sample"] = stack_dict["Sample"]
+    return stack_dict["root"]
 
 def runningSave(save_path_json, verified_imageDict, image_name, res_dict):
+    res_dict["RESPONSE"][image_name].update({"client_name" : {"sequences" : "" }})
+    res_dict["RESPONSE"][image_name].update({"contract_name" : {"sequences" : "" }})
     for key, items in verified_imageDict.items() :
         if key[0] == "-":
             res_dict["RESPONSE"][image_name][key.strip("-")]["sequences"] = items

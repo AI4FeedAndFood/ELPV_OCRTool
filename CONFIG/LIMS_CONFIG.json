@@ -1,7 +1,7 @@
 {
     "TOOL_PATH" : {
         "input_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\test1",
-        "output_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data"
+        "output_folder" : ""
     },
     "CLEAN_ZONE" : {
         "N_d_echantillon" : "Numero d'echantillon",
@@ -16,16 +16,20 @@
         "pays_d_origine" : "Pays d'origine"
     },
     "LIMS_CONVERTER" : {
-        "N_d_echantillon" : "CustomerReference",
-        "date_de_prelevement" : "M005",
-        "nom"  : "LN478",
-        "type_lot" : "IP001",
-        "variete" : "AAA036_variete",
-        "localisation_prelevement" : "IP004",
-        "pays_d_origine" : "AAA036_pays_origine",
-        "N_de_scelle" : "IP005",
-        "N_de_lot" : "AAM008",
-        "parasite_package" : "TestCode"
+        "CustomerCode" : ["root", "CustomerCode"],
+        "ContractCode" :  ["root", "ContractCode"],
+        "Devis" :  ["root", "Devis"],
+        "EngamentJuridique" :  ["root", "EngamentJuridique"],
+        "N_d_echantillon" : ["Sample", "CustomerReference"],
+        "date_de_prelevement" : ["AdditionalField", "M005"],
+        "nom"  : ["AdditionalField", "LN478"],
+        "type_lot" : ["AdditionalField", "IP001"],
+        "variete" : ["AdditionalField", "AAA036_variete"],
+        "localisation_prelevement" :["AdditionalField", "IP004"],
+        "pays_d_origine" : ["AdditionalField", "AAA036_pays_origine"],
+        "N_de_scelle" : ["AdditionalField", "IP005"],
+        "N_de_lot" : ["AdditionalField", "AAM008"],
+        "parasite_package" : ["Sample", "TestCode"]
     },
     "UNIT_TEST_CODE" : {
         "IP006" : "Clavibacter",

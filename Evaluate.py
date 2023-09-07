@@ -5,7 +5,7 @@ from datetime import date
 import pytesseract
 today = str(date.today().strftime("%b-%d-%Y"))
 
-from LaunchingTool import TextExtractionTool_EVALUATE
+from LaunchTool import TextExtractionTool_EVALUATE
 from JaroDistance import jaro_distance
 custom_config = f'--oem 3 --psm 6'
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
@@ -60,6 +60,11 @@ def eval_text_extraction(path_to_eval, eval_path = r"C:\Users\CF6P\Desktop\cv_te
         row = [root_path, file_name, image, full_name]
         for _, landmark_text_dict in zone_dict.items():
             row.append(landmark_text_dict["sequences"])
+        print(len(row), row)
+        if len(row) != 14:
+            row.insert(7, [])
+            row.insert(11, [])
+            row.insert(12, [])
         row.append(landmark_text_dict["format"])
         eval_df.loc[len(eval_df)] = row
     eval_df.to_excel(result_excel_path, sheet_name="results", index=False)
@@ -72,6 +77,10 @@ def eval_text_extraction(path_to_eval, eval_path = r"C:\Users\CF6P\Desktop\cv_te
             if conf !=[]:
                 row.append(min(conf))
             else: row.append(0)
+        if len(row) != 14:
+            row.insert(7, [])
+            row.insert(11, [])
+            row.insert(12, [])
         row.append(landmark_text_dict["format"])
         proba_df.loc[len(proba_df)] = row
     
@@ -109,15 +118,15 @@ def get_score(result_name, eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\
 if __name__ == "__main__":
     
     whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:/°&.=àéçïùê''-"
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Users\CF6P\Desktop\cv_text\OCRTool\exterior_program\Tesseract4-OCR\tesseract.exe'
+    pytesseract.pytesseract.tesseract_cmd = r'exterior_program\Tesseract4-OCR\tesseract.exe'
     LANG = 'eng+eng2'
     TESSCONFIG = [1, 6, whitelist, LANG]
-    result_name = "test_1_6_p5"
-    eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\V4"
+    result_name = "prod_V1"
+    eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\V5"
     l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan1.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf", 
-         r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan4.pdf",
-        r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"]
-    # l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"]
+         r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan4.pdf",
+        r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"]
+    # l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan5-1.pdf"]
     # for el in l:
     #     eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
     # print(get_score(result_name= result_name, eval_path=eval_path))
@@ -125,11 +134,11 @@ if __name__ == "__main__":
     for i in [1]:
         for k in [6]: 
             TESSCONFIG = [i, k, whitelist, LANG]
-            result_name = f"zz_results{i}_{k}_4_{LANG}"
+            result_name = f"results_prod_{i}_{k}_{LANG}"
             stack = []
             try :
-                # for el in l:
-                    # eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
+                for el in l:
+                    eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
                 stack.append([(i,k, 4, LANG), get_score(result_name=result_name, eval_path=eval_path)])
                 print("############ status #########\n",stack)
                 with open(os.path.join(eval_path, "stack.txt"), 'a') as f:

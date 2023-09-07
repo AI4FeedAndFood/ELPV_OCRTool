@@ -149,7 +149,7 @@ def visualize(cropped_image, filtered_objects):
 def crop_image_and_sort_format(processed_image, show=False):
     format, rect = get_rectangle(processed_image)
     cropped_image = crop_and_rotate(processed_image, rect)
-    if format != "table":
+    if format == "hand_or_check":
         format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
     return format, cropped_image
 
@@ -170,7 +170,7 @@ def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLAT
         visualize(cropped_image, filtered_detection)
     if mode == "get_boxes":
         return filtered_detection
-    else: 
+    if mode == "get_format": 
         count = 0
         for checkbox in filtered_detection:
             x,y = checkbox["TOP_LEFT_X"], checkbox["TOP_LEFT_Y"] # Filter by the position of found boxes
