@@ -32,6 +32,7 @@
         "parasite_package" : ["Sample", "TestCode"]
     },
     "UNIT_TEST_CODE" : {
+        "IP09F" : "rhizomanie",
         "IP006" : "Clavibacter",
         "IP007" : "Ralstonia solanacearum",
 

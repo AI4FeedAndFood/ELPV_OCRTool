@@ -113,7 +113,7 @@ def TextCVTool(path, custom_config=TESSCONFIG):
         os.makedirs(res_path)
     
     images, images_names = getAllImages(pdf_in_folder, path)
-        
+    res_image, res_image_name = [], []
     res_dict_per_image = {}
     res_dict_per_image["TESSERACT"] = TESSCONFIG
     res_dict_per_image["RESPONSE"] = {}
@@ -123,12 +123,16 @@ def TextCVTool(path, custom_config=TESSCONFIG):
         image = images[i]
         name = images_names[i]
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image)
-        if format == "landscap":
-            landscape_dict_res = ProcessLandscape(cropped_image,  ocr_config=custom_config)
+        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image)
+        if format == "landscape":
+            landscape_dict_res = ProcessLandscape(cropped_image)
             for dict_name, landscape_dict in landscape_dict_res.items():
-                res_dict_per_image["RESPONSE"][dict_name] = landscape_dict
-        else : 
+                res_dict_per_image["RESPONSE"][name+"_"+dict_name] = landscape_dict
+                res_image.append(image)
+                res_image_name.append(name+"_"+dict_name)
+        else :
+            res_image.append(image)
+            res_image_name.append(name)
             OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
             OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
             
@@ -141,15 +145,13 @@ def TextCVTool(path, custom_config=TESSCONFIG):
                 format = "hand"
                 OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
                 OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-
             res_dict_per_image["RESPONSE"][name] = OCR_and_text_full_dict
-        # saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict)
-        
-    return images_names, res_dict_per_image, images
+            
+    return res_image_name, res_dict_per_image, res_image
 
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\07082023"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\landscape"
     TextCVTool(path, custom_config=TESSCONFIG)
     

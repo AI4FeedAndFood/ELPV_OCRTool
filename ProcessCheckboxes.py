@@ -146,11 +146,16 @@ def visualize(cropped_image, filtered_objects):
     plt.imshow(image_with_detections, cmap='gray')
     plt.show(block=True)
    
-def crop_image_and_sort_format(processed_image, show=False):
+def crop_image_and_sort_format(processed_image, original_image=None, show=False):
     format, rect = get_rectangle(processed_image)
-    cropped_image = crop_and_rotate(processed_image, rect)
-    if format == "hand_or_check":
-        format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
+    
+    if format == "landscape":
+        cropped_image = crop_and_rotate(original_image, rect)
+        
+    else : 
+        cropped_image = crop_and_rotate(processed_image, rect)
+        if format == "hand_or_check":
+            format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
     return format, cropped_image
 
 def get_lines(image):
@@ -184,11 +189,11 @@ def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLAT
 if __name__ == "__main__":
     from ProcessPDF import PDF_to_images, binarized_image
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan8.pdf"
     images = PDF_to_images(path)
-    images = images[3:]
+    images = images[0:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\nImage {i} is starting")
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image, show=True)
+        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, show=True)

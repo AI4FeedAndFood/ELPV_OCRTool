@@ -124,8 +124,8 @@ if __name__ == "__main__":
     result_name = "prod_V1"
     eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\V5"
     l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan1.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf", 
-         r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan4.pdf",
-        r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"]
+         r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan4.pdf",
+        r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf", r"C:\Users\CF6P\Desktop\cv_text\Data\scan7.pdf"]
     # l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan5-1.pdf"]
     # for el in l:
     #     eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     for i in [1]:
         for k in [6]: 
             TESSCONFIG = [i, k, whitelist, LANG]
-            result_name = f"results_prod_{i}_{k}_{LANG}"
+            result_name = f"results_prod2_{i}_{k}_{LANG}"
             stack = []
             try :
                 for el in l:

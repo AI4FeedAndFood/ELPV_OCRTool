@@ -28,13 +28,69 @@ def binarized_image(image):
     Returns:
         np.array : binarized image
     """
+    #image = image[3:-3, 3:-3]
     blur = cv2.bilateralFilter(image,5,200,200)
-    gray = cv2.cvtColor(blur, cv2.COLOR_BGR2GRAY)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
-    # niblack = cv2.ximgproc.niBlackThreshold(gray, 255, cv2.THRESH_BINARY, 41, -0.1, binarizationMethod=cv2.ximgproc.BINARIZATION_NICK)
     return thresh
 
-def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
+def _split_table_landscape(processed_image, rectangles):
+    
+    def _process_rectangles(rectangles, format):        
+        maxarea = 0
+        for i, rect in enumerate(rectangles):
+            if 45<rect[-1]:
+                rectangles[i][1] = (rectangles[i][1][1], rectangles[i][1][0])
+                if maxarea < rectangles[i][1][0]*rectangles[i][1][1]:
+                    rot = 90-rect[-1]
+            elif maxarea < rectangles[i][1][0]*rectangles[i][1][1]:
+                rot = rect[-1] # The rot angle is chosen by taken the biggest rect angle
+        
+        xy_wh_rot = [[], [], []]
+        for rect in rectangles:
+            for comp in range(len(rect)):
+                xy_wh_rot[comp].append(rect[comp])
+              
+        UX_LX_UY_LY = []
+        for dist_i in [0,1]:
+            for sens_j in [0,1]:
+                if sens_j == 0 :
+                    UX_LX_UY_LY.append(min([(rec[0][dist_i] - rec[1][dist_i]//2)+1 for rec in rectangles]))
+                else :
+                    UX_LX_UY_LY.append(max([(rec[0][dist_i] + rec[1][dist_i]//2)+1 for rec in rectangles]))
+                    
+        wh = (UX_LX_UY_LY[1]-UX_LX_UY_LY[0]+10, UX_LX_UY_LY[3]-UX_LX_UY_LY[2]+10)
+        xy = (wh[0]//2 + UX_LX_UY_LY[0], wh[1]//2 + UX_LX_UY_LY[2])
+        
+        if format == "landscape":
+            rot = -rot
+            wh = (UX_LX_UY_LY[1]-UX_LX_UY_LY[0]+10, y)
+        
+        # im = processed_image.copy()
+        # box = cv2.boxPoints([xy, wh, rot])
+        # box = np.int0(box)
+        # cv2.drawContours(im, [box], 0, (0,0,255), 8)
+        # plt.imshow(im, cmap="gray")
+        # plt.show()
+        
+        return (xy, wh, rot)
+    
+    y,x = processed_image.shape
+    if len(rectangles)>2: # Clean if there is a black border of the scan wich is concider as a contour
+        rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]
+        
+    sorted_x, sorted_y = sorted(rectangles, key=lambda x: x[0][0]), sorted(rectangles, key=lambda x: x[0][1])
+    Dx, Dy = (sorted_x[-1][0][0]-sorted_x[0][0][0]), (sorted_y[-1][0][1]-sorted_y[0][0][1])
+    if Dx > Dy:
+        format = "landscape"
+    else:
+        format = "table"
+        
+    rectangle = _process_rectangles(rectangles, format)
+
+    return format, rectangle
+    
+def get_rectangle(processed_image, kernel_size=(3,3)):
     """
     Extract the minimum area rectangle containg the text. 
     Thanks to that detect if the image is a TABLE format or not.
@@ -48,34 +104,20 @@ def get_rectangle(processed_image, kernel_size=(3,3), interations = 2):
         rectangle (cv2.MinAreaRect) : The biggest rectangle of text found in the image
     """
     y, x = processed_image.shape[:2]
-    
-    if x>y:
-        format = "landscape"
-    elif interations == 2:
-        format = "hand_or_check"
-    else:
-        format = "table"
-    im = processed_image.copy()
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, kernel_size)
-    dilate = cv2.dilate(~processed_image, kernel, iterations=interations)
+    dilate = cv2.dilate(~processed_image, kernel, iterations=2)
     contours,_ = cv2.findContours(dilate, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if len(contours) == 0:
         print("No contour found : Crop is impossible, processed image is return.")
         return []
 
     rectangles = [cv2.minAreaRect(contour) for contour in contours]
-    rectangles = [rect for rect in rectangles if rect[1][0]*rect[1][1]>x*y/12]
-    for rec in rectangles:
-        box = cv2.boxPoints(rec)
-        box = np.int0(box)
-        cv2.drawContours(im, [box], 0, (0,0,255), 8)
-    # print(format)
-    # plt.imshow(im)
-    # plt.show()
+    rectangles = [list(rect) for rect in rectangles if rect[1][0]*rect[1][1]>x*y/12]
+
     if len(rectangles)==1:
-        return format, rectangles[0]
-    if len(rectangles)>1:
-        return get_rectangle(processed_image, kernel_size=(5,5), interations = interations+2)
+        return "hand_or_check", rectangles[0]
+    else:
+        return _split_table_landscape(processed_image, rectangles)
 
 def crop_and_rotate(processed_image, rect):
     """Crop the blank part around the found rectangle.
@@ -99,7 +141,7 @@ def crop_and_rotate(processed_image, rect):
     
     if len(rect)==0 : 
         return processed_image
-    
+
     box = np.intp(cv2.boxPoints(rect))    
     # Rotate image
     angle = rect[2]
@@ -115,15 +157,51 @@ def crop_and_rotate(processed_image, rect):
     return cropped_image
 
 def delete_lines(bin_image): # Unused function wich delete (approximatly) lines on an image
-    imsave = bin_image.copy()
+    
+    bin_image = np.array(bin_image).astype(np.uint8)
+    copy = bin_image.copy()
     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (50,1))
-    remove_horizontal = cv2.morphologyEx(imsave, cv2.MORPH_OPEN, horizontal_kernel, iterations=1)
-    cnts = cv2.findContours(remove_horizontal, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    detected_lines = cv2.morphologyEx(bin_image, cv2.MORPH_OPEN, horizontal_kernel, iterations=2)
+    bin_image[detected_lines==255] = 0
+    cnts = cv2.findContours(detected_lines, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     cnts = cnts[0] if len(cnts) == 2 else cnts[1]
     for c in cnts:
-        cv2.drawContours(bin_image, [c], -1, (255,255,255), 2)
-    return bin_image
+        cv2.drawContours(copy, [c], -1,(255, 255,255), 2)
+    return copy
 
+def HoughLines(bin_image, mode="vertical"):
+    (cst, _) = (0,1) if mode == "vertical"  else (1,0) # The specified axis is the constant one
+    image = bin_image.copy()
+    ksize = (1,6) if mode == "vertical" else (6,1)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, ksize=ksize)
+    bin_image = cv2.dilate(bin_image, kernel, iterations=4)
+    # plt.imshow(bin_image)
+    # plt.show()
+    edges = cv2.Canny(bin_image,50,150,apertureSize=3)
+ 
+    # Apply HoughLinesP method to
+    # to directly obtain line end points
+    lines_list =[]
+    lines = cv2.HoughLinesP(
+                edges, # Input edge image
+                1, # Distance resolution in pixels
+                np.pi/180, # Angle resolution in radians
+                threshold=60, # Min number of votes for valid line
+                minLineLength=20, # Min allowed length of line
+                maxLineGap=290 # Max allowed gap between line for joining them ; Set according to the SEMAE format
+                )
+    
+    for points in lines:
+        # Extracted points nested in the list
+        x1,y1,x2,y2=points[0]
+        line  = [(x1,y1),(x2,y2)]
+        # Delete lines in bias
+        if abs(line[0][cst]-line[1][cst])<10:
+            lines_list.append(line)
+    lines_list = sorted(lines_list, key=lambda x: x[0][cst])
+
+    return lines_list
+    
 def get_preprocessed_image(image):
     """The main function to process an image from head to tail
 
@@ -136,3 +214,13 @@ def get_preprocessed_image(image):
     bin_image = binarized_image(image)
     cropped_image = crop_and_rotate(bin_image)
     return cropped_image
+
+if __name__ == "__main__":
+
+    print("start")
+    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf"
+    images = PDF_to_images(path)
+    images = images[0:]
+    for im in images:
+        processed_image = binarized_image(im)
+        get_rectangle(processed_image)

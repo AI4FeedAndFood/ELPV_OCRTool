@@ -17,6 +17,12 @@
         }
     },
 
+    "landscape_HSV" : {
+        "HSV_lower" : [110,25,20],
+        "HSV_upper" :  [150,255,255],
+        "area_threshold" : 2000
+    },
+
     "lists": {
         "parasite" : ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Meloidogyne enterolobii" , "Ralstonia solanacearum", "Clavibacter", 
         "Globodera pallida","Globodera rostochiensis", "Naccobus aberrans", "PVY", "Jambe noire", "PLRV"],
@@ -31,7 +37,7 @@
         "MARABEL", "MARILYN", "MARISOL", "MARKIES", "MELODY", "MEMPHIS", "MICHELLE", "MILVA", "MISS BLUSH", "MONALISA", "MOZART", "NAPOLEON","NASKA", "NAZCA", "NICOLAS", "NOBLESSE",
         "NIRVANA", "NORMANDINE", "ORCHESTRA", "OTOLIA", "PARIS", "PERLINE", "PREMIERE", "PRIMAVERA", "PRINCE", "QUENNE", "RACKAM", "RATTE", "RED SCARLETTE", "REGINA", 
         "ROSABELLE", "ROUSSEAU", "ROYAL", "RUDOLF", "RUDOLPH", "RUSSET", "RUMBA", "SINORA", "SIROCA", "SIRTEMA", "SOUND", "SURYA", "SPONTA", "SPUNTA", "STEMSTER","SURYA", "TAISIYA",
-        "TWINNER", "UNIVERSA", "VALENCIA", " VALERIE", "VICTORIA", "VENIZIA", "VIOLET QUEEN", "VITABELLA", "YONA", "ZEN"],
+        "Talentine", "TWINNER", "UNIVERSA", "VALENCIA", " VALERIE", "VICTORIA", "VENIZIA", "VIOLET QUEEN", "VITABELLA", "YONA", "ZEN"],
         
         "lot": ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee", "Introduction", "Exportation"],
 
@@ -44,7 +50,7 @@
             "subregion" : [[0, 0.25], [0.57, 1]],
             "key_sentences" : [["2", "N°", "d'echantillon", "(*)"]],
             "relative_position" : [[[-0.5,6], [0,2]]],
-            "conditions" : [["echantillon", [20, 99]]]
+            "conditions" : [["echantillon", [22, 30]]]
         },
         "date_de_prelevement" : {
             "subregion" : [[0.05, 0.25], [0.57, 1]],
@@ -167,37 +173,37 @@
 
     "table" : {
         "N_d_echantillon" : {
-            "subregion" : [[0.25, 0.70], [0.75, 1]],
+            "subregion" : [[0.22, 0.4], [0.75, 1]],
             "key_sentences" : [["ECH"], ["N°","d'echantillon"]],
             "relative_position" : [[[-0.2,5], [0,8]], [[4,25], [-0.5,1.5]]],
             "conditions" : [["echantillon", [20, 99]]]
         },
         "date_de_prelevement" : {
-            "subregion" : [[0.65, 0.85], [0, 0.8]],
+            "subregion" : [[0.8, 0.95], [0, 0.8]],
             "key_sentences" : [["DATE", "DU", "PRELEVEMENT"]],
             "relative_position" : [[[-0.5,1.5], [0,3]]],
             "conditions" : [["date"]]
         },
         "nom" : {
-            "subregion" : [[0.05, 0.25], [0.67, 0.95]],
+            "subregion" : [[0.0, 0.2], [0.67, 0.95]],
             "key_sentences" : [["Producteur"], ["Adresse"]],
             "relative_position" : [[[1,8], [-1,2]], [[-2,2], [-1,2]]],
             "conditions" : [["after_key", [["Adresse", "Producteur", " Producteur Adresse"], []]]]
         },
         "variete" : {
-            "subregion" : [[0.3, 0.5], [0, 0.25]],
+            "subregion" : [[0.25, 0.75], [0, 0.25]],
             "key_sentences" : [["Variete"]],
             "relative_position" : [[[-0.2,3.5], [-0.2,3.5]]],
             "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
-            "subregion" : [[0.6, 0.9], [0,0.5]],
+            "subregion" : [[0.8, 0.95], [0,0.5]],
             "key_sentences" : [["LIEU", "DU", "PRELEVEMENT"]],
             "relative_position" : [[[-0.5,1.5], [0,3]]],
             "conditions" : [["after_key", [["LIEU", "DU", "PRELEVEMENT"], ["Nom", "Prenom", "Inspecteur"]]]]
         },
         "N_de_scelle" : {
-            "subregion" : [[0.25, 0.7], [0.8, 1]],
+            "subregion" : [[0.25, 0.8], [0.8, 1]],
             "key_sentences" : [["Scellé"], ["N°","de", "scelle"]],
             "relative_position" : [[[-0.2,5], [0,8]], [[4,23], [-0.5,1.5]]],
             "conditions" : [["after_key", [["Scelle", ":"], ["ECH"]]]]
@@ -207,6 +213,44 @@
             "key_sentences" : [["Cocher", "ONR", "concernés"]],
             "relative_position" : [[[1,45], [-0.5, 1.5]]],
             "conditions" : [["list", "parasite", "multiple"]]
+        }
+    },
+
+    "landscape" : {
+        "N_d_echantillon" : {
+            "subregion" : [[0.45, 1], [0, 0.1]],
+            "key_sentences" : [["echantillon"]],
+            "merged" : 0,
+            "theorical_col" : 1,
+            "conditions" : [["cell"]]           
+        },
+        "nom" : {
+            "subregion" : [[0.45, 1], [0.08, 0.25]],
+            "key_sentences" : [["N° identification", "du"], ["producteur", "de", "la", "culture"]],
+            "merged" : 1,
+            "theorical_col" : 2,
+            "conditions" : [["cell"]] 
+        },
+        "date_de_prelevement" : {
+            "subregion" : [[0.45, 1], [0.2, 0.35]],
+            "key_sentences" : [["Date"], ["prelevement"]],
+            "merged" : 0,
+            "theorical_col" : 3,
+            "conditions" : [["date"]]
+        },
+        "variete" : {
+            "subregion" : [[0.45, 1], [0.55, 0.7]],
+            "key_sentences" : [["Variete"]],
+            "merged" : 1,
+            "theorical_col" : 6,
+            "conditions" : [["list", "variete", "single"]]
+        },
+        "localisation_prelevement" : {
+            "subregion" : [[0.45, 1], [0.6,0.85]],
+            "key_sentences" : [["Lieu", "du", "prelevement"]],
+            "merged" : 1,
+            "theorical_col" : 7,
+            "conditions" : [["cell"]] 
         }
     }
 }

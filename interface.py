@@ -51,8 +51,8 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
             sequence = landmark_text_dict["sequences"]
             conf= 100 # If empty must not be red
             if landmark_text_dict["indexes"] != []:
-                conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])           
-            if conf < conf_threshold : 
+                conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])
+            if conf < conf_threshold or sequence=="":
                 back_color = 'red'
             else : 
                 back_color = sg.theme_input_background_color()
@@ -158,15 +158,21 @@ def convertDictToLIMS(verified_dict, scan_name, CLIENT_CONTRACT_DF):
         for u_code, u_para in LIMSsettings["UNIT_TEST_CODE"].items():
             if u_para in para_list:
                 unit_code_list.append(u_code)
-        unit_in_package = []
-        for u_code, u_para in LIMSsettings["PACKAGE_TEST_CODE"].items(): 
-           # Unique case of a package that include two others            
-            if u_code in ["PIP0W", "PIPIG"] and "PIPT3" in test_code_list: pass
-            
-            if set(unit_code_list).intersection(set(u_para)) == set(u_para):
-                test_code_list.append(u_code)
-                unit_in_package += u_para
-        test_code_list += list(set(unit_in_package) ^ set(unit_code_list)) # Add non-packed unit test
+                
+        unit_in_package = [] # store integrated unit test
+        package_sorted = []
+        
+        # Sort package from the biggest to the smaller to prevent the case where small package are included in big to be miss assignated
+        for p_code, p_para in LIMSsettings["PACKAGE_TEST_CODE"].items():
+            package_sorted.append((p_code, p_para))
+        package_sorted = sorted(package_sorted, key = lambda x : len(x[1]), reverse=True)
+
+        for (p_code, p_para) in package_sorted:
+            if set(unit_code_list).intersection(set(p_para)) == set(p_para):
+                test_code_list.append(p_code)
+                unit_in_package += p_para
+                unit_code_list = list(set(unit_code_list) - set(unit_in_package))
+        test_code_list += unit_code_list # Add non-packed unit test
         
         return test_code_list
 
@@ -232,7 +238,21 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, ou
             i_test+=1
         os.rename(xml_save_path, new_xml)
         # shutil.rmtree(res_path)
-    
+
+def adapt_landscape(images_names_dict, images, images_names):
+    res_images, res_names = [], []
+    for i, name in enumerate(images_names):
+        loc_im = [images[i]]
+        loc_name = [name]
+        point_names = [point for point in images_names_dict if name+"_"+"point" in point]
+        if point_names != []:
+            loc_name = point_names
+            loc_im = [images[i] for k in point_names]
+        res_images += loc_im
+        res_names += loc_name
+        
+    return res_images, res_names          
+
 def main():
     welcomeLayout = [
         [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL_PATH"]["input_folder"], key="-PATH-"), 
@@ -268,6 +288,7 @@ def main():
                         res_dict_per_image = json.load(json_file)
                         images_names_dict = list(res_dict_per_image["RESPONSE"].keys())
                         images, images_names = getAllImages(pdfs, givenPath)
+                        images, images_names =  adapt_landscape(images_names_dict, images, images_names)
                         
                         welcomWindow.close()
                         start = True
@@ -381,10 +402,11 @@ def main():
                                         runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
                                         n_image+=1
                                 if verif_event == "<- Retour":
-                                    runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
-                                    n_image-=1
-                                    if contractSuggestionW : contractSuggestionW.close()
-                                    if ClientSuggestionW : ClientSuggestionW.close()
+                                    if n_image>0:
+                                        runningSave(save_path_json, verif_values, image_name, res_dict_per_image)
+                                        n_image-=1
+                                        if contractSuggestionW : contractSuggestionW.close()
+                                        if ClientSuggestionW : ClientSuggestionW.close()
                             VerificationWindow.close()                 
     
     welcomWindow.close()               

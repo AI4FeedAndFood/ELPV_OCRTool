@@ -12,7 +12,7 @@ from datetime import datetime
 year = datetime.now().year
 
 from ProcessCheckboxes import crop_image_and_sort_format, get_format_or_checkboxes, Template
-from ProcessPDF import PDF_to_images, binarized_image
+from ProcessPDF import PDF_to_images, binarized_image, delete_lines
 from JaroDistance import jaro_distance
 
 whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
@@ -63,16 +63,15 @@ def _find_landmarks_index(key_sentences, text): # Could be optimized
     for key_sentence in key_sentences: # for landmark sentences from the json
         key = key_sentence
         best_key_candidate = key
-        res = [] # 
+        res = []
         best_dist = 0.80
-        if "NÂ°" in key_sentence :
-            key_sentence = list(map(lambda x : x.replace("NÂ°", "N°"),key_sentence)) #Correction of json format
         for i_key, key_word in enumerate(key_sentence): # among all words of the landmark
             for i_word, word in enumerate(text):
+                word = unidecode(word)
                 if key_word.lower() == word.lower(): # if there is a perfect fit in an word (Maybe should be softer but would take more time)
                     key_candidate = text[i_word-i_key:i_word-i_key+len(key_sentence)]
                     distance = jaro_distance("".join(key), "".join(key_candidate)) # compute the neighborood matching
-                    if distance > best_dist : # take the best distance
+                    if distance > best_dist : # take the matching neighborood among all matching words
                         best_dist = distance
                         best_key_candidate = key_candidate
                         res = [i_word-i_key, i_word-i_key+len(key_sentence)] # Start and end indexes of the found key sentence
@@ -126,7 +125,7 @@ def get_data_and_landmarks(format, cropped_image, JSON_HELPER=OCR_HELPER, ocr_co
                 if xmin<x<xmax and ymin<y<ymax: # Check if the found landmark is in the right area
                     landmarks_coord.append(("found", [x,y,w,h], cor))
                     # cv2.rectangle(cropped_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                else : 
+                else :
                     landmarks_coord.append(("default", [], cor))
                     null+=1
             else : 
@@ -137,10 +136,10 @@ def get_data_and_landmarks(format, cropped_image, JSON_HELPER=OCR_HELPER, ocr_co
         if null>0:
             OCR_default_region = pytesseract.image_to_data(cropped_image[int(ymin):int(ymax), int(xmin):int(xmax)], 
                                                            output_type=pytesseract.Output.DICT,  lang=data, config=config)
-            text = _text_filter(OCR_default_region["text"])
+            text_local = _text_filter(OCR_default_region["text"])
             for i, coord in enumerate(landmarks_coord):
                 if len(coord[1])==0:
-                    detected_index, cor = _find_landmarks_index([key_points["key_sentences"][i]], text)[0]
+                    detected_index, cor = _find_landmarks_index([key_points["key_sentences"][i]], text_local)[0]
                     if len(detected_index)!=0 :
                         i_min, i_max = detected_index
                         x_relative, y_relative = OCR_default_region['left'][i_min], OCR_default_region['top'][i_min]
@@ -193,28 +192,38 @@ def _get_area(cropped_image, box, relative_position, corr_ratio=1.15):
     return y_min, y_max, x_min, x_max
 
 def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, format, ocr_config=TESSCONFIG):
+    """_summary_
+
+    Args:
+        cropped_image
+        landmark_boxes (list of 4 ints): [box_type, box, cor] with box_type(default or found), box([x,y,w,h] of the landmark) and cor the ratio of the merge to take around the landmark
+        relative_positions (list of a list of 2 factors): [[[x_1,x_2], [y_1,y_2], [....]] with (x_1, x_2), the the factor that multiply the height of the landmark_box.
+            indicat the position of the the new area.
+        format
+        ocr_config: Defaults to TESSCONFIG.
+
+    Returns:
+       OCRs_and_candidates_list (list of dict): The dict result for each landmark. The dict include OCR, type, box, sequences, indexes, format
+    """
     OCRs_and_candidates_list = []
     for n_landmark, relative_position in enumerate(relative_positions):
         res_dict = {}
-        box_type, box, cor = landmark_boxes[n_landmark]
-        if box_type == "default" : 
-            relative_position = [[0,1], [0,1]]
+        box_type, box, cor = landmark_boxes[n_landmark] 
+        relative_position = [[0,1], [0,1]] if box_type == "default" else relative_position
         y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position, corr_ratio=cor)
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         searching_area = np.pad(searching_area, 5,  constant_values=255)
-        plt.imshow(searching_area)
-        plt.show()
+        # plt.imshow(searching_area)
+        # plt.show()
         config = f' --oem {ocr_config[0]} --psm {ocr_config[1]} -c tessedit_char_whitelist=' + ocr_config[2]
         data = ocr_config[3]
         local_OCR = pytesseract.image_to_data(searching_area, output_type=pytesseract.Output.DICT, lang=data, config=config)
         local_OCR["text"] = _text_filter(local_OCR["text"])
         candidate_sequences, candidate_indexes = _process_raw_text_to_sequence(local_OCR["text"])
+        # print(candidate_sequences)
         res_dict["OCR"], res_dict["type"], res_dict["box"] = local_OCR, box_type, [int(y_min), int(y_max), int(x_min), int(x_max)]
         res_dict["sequences"], res_dict["indexes"] = candidate_sequences, candidate_indexes
-        res_dict["risk"] = 0
         res_dict["format"] = format
-        if res_dict["type"] == "default":
-            res_dict["risk"] = 1
         OCRs_and_candidates_list.append(res_dict)
 
     check_seq = []
@@ -262,7 +271,6 @@ def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity
     matching_key_place_stack, matching_word_place_stack = [[], []], [[], []]
     # Get the begining and and the end of the sequence to take what is between
     for _, candidate_sequence in enumerate(clean_sequences):
-        print(candidate_sequence)
         matching_key_place, matching_word_place = [[], []], [[], []] # Store the matching key index and the place on the candidate seq
         for state, key_seq in enumerate(key_sequences):
             for i_key, key_word in enumerate(key_seq):
@@ -337,7 +345,7 @@ def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity
 
 def _clean_local_sequences(sequence_index_zips, key_main_sentences, conditions):
     strip_string_after_key = " |\[]_!.<>{}—;"
-    strip_string_others = "()*: |\/[]_!.<>{}—;-&"
+    strip_string_others = '"()*: |\/[]_!.<>{}—;-'
     cleaned_candidate, cleaned_indexes = [], []
     key_sentences = [word for sentence in key_main_sentences for word in sentence]
     for candidate_sequence, candidate_indexes in sequence_index_zips:
@@ -370,7 +378,7 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
     OCRs_and_candidates = deepcopy(candidates_dicts)
     OCRs_and_candidates_filtered = []
     for candidate_dict in OCRs_and_candidates:
-        strip_string_others = "()* |\/[]_!.<>‘{}:—;~-+"
+        strip_string_others = '"()* |\/[]_!.<>‘{}:—;~-+'
         zipped_seq = zip(candidate_dict["sequences"], candidate_dict["indexes"])
         clean_sequence, clean_indexes = _clean_local_sequences(zipped_seq, key_main_sentences, conditions)
         zipped_seq = zip(clean_sequence, clean_indexes)
@@ -481,6 +489,15 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
                     if mode == "single":
                         new_sequence, new_indexes = [new_sequence[0]], [new_indexes[0]]
                     
+            if condition[0] == "cell": 
+                for candidate_sequence, candidate_index in zipped_seq:
+                    new_sequence += candidate_sequence
+                    new_indexes += candidate_index
+                new_sequence, new_indexes = [new_sequence], [new_indexes]
+                
+            if condition[0] == "default":
+                new_sequence, new_indexes = [condition[1]], []
+            
             new_sequence_res, new_indexes_res = [], []            
             for i in range(len(new_sequence)):
                 if new_sequence[i] != []:
@@ -508,7 +525,7 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
     for n_landmark, relative_position in enumerate(relative_positions):
         res_dict = {}
         box_type, box, _ = landmark_boxes[n_landmark]
-        if box_type == "default" : relative_position = [[0,1], [0,1]]
+        relative_position = [[0,1], [0,1]] if box_type == "default" else relative_position
         y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position)
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
         templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.4, transform_list=TRANSFORM)]
@@ -518,7 +535,6 @@ def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_box
         res_dict["OCR"] = {}
         res_dict["type"], res_dict["box"] = box_type,  [int(y_min), int(y_max), int(x_min), int(x_max)]
         res_dict["sequences"], res_dict["indexes"] = [], []
-        res_dict["risk"] = 0
         res_dict["format"] = format
         for cross in sorted_checkboxes:
             x1,y1, x2,y2= cross["TOP_LEFT_X"], cross["TOP_LEFT_Y"], cross["BOTTOM_RIGHT_X"], cross["BOTTOM_RIGHT_Y"]
@@ -561,6 +577,7 @@ def get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_
         res_dict = candidate_dict
         y_min, y_max, x_min, x_max = candidate_dict["box"]
         searching_area = cropped_image[y_min:y_max, x_min:x_max]
+        # searching_area = delete_lines(searching_area)
         checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
         sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)
         
@@ -699,7 +716,6 @@ def select_text(OCRs_and_candidates, zone): # Very case by case function ; COULD
                     res_dict["choice"] = "Two times the same sequence"
                     res_dict["sequences"], res_dict["indexes"] = res_seq, res_index
                     return res_dict
-                
                 proba = [candidate_dict["OCR"]["conf"][i] for i in res_index]
                 res_dict["sequences"], res_dict["indexes"] = res_seq, res_index
                 if len(proba)>0:
@@ -737,11 +753,11 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
             candidate_OCR_list = get_candidate_local_OCR(cropped_image, landmark_boxes, key_points["relative_position"], format, ocr_config=ocr_config)
             candidate_OCR_list_filtered = condition_filter(candidate_OCR_list, key_points["key_sentences"], conditions)
         clean_OCRs_and_candidates = common_mistake_filter(candidate_OCR_list_filtered, zone)
-        
+     
         if (format, zone) == ("table", "parasite_recherche"):
             checkbox_dict = JSON_HELPER["checkbox"][format][zone]
             clean_OCRs_and_candidates = get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_image)
-    
+
         OCR_and_text_full_dict = select_text(clean_OCRs_and_candidates, zone) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)            
         
         if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
@@ -749,8 +765,8 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
         if OCR_and_text_full_dict["indexes"] != [] :
             if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-        print(OCR_and_text_full_dict["sequences"])
-        res_dict_per_zone[zone] = OCR_and_text_full_dict                    
+                
+        res_dict_per_zone[zone] = OCR_and_text_full_dict
     return res_dict_per_zone 
 
 if __name__ == "__main__":
@@ -763,9 +779,9 @@ if __name__ == "__main__":
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image, show=False)
-        # plt.imshow(cropped_image)
+        # plt.imshow(processed_image)
         # plt.show()
+        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, show=False)
         print(f"Image with format : {format} is cropped.")
         OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image)
         print(f"Landmarks are found.")
