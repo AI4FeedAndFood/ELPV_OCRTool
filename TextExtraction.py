@@ -72,6 +72,7 @@ def _find_landmarks_index(key_sentences, text): # Could be optimized
                     key_candidate = text[i_word-i_key:i_word-i_key+len(key_sentence)]
                     distance = jaro_distance("".join(key), "".join(key_candidate)) # compute the neighborood matching
                     if distance > best_dist : # take the matching neighborood among all matching words
+                        # print(key_word, key_candidate)
                         best_dist = distance
                         best_key_candidate = key_candidate
                         res = [i_word-i_key, i_word-i_key+len(key_sentence)] # Start and end indexes of the found key sentence
@@ -113,6 +114,8 @@ def get_data_and_landmarks(format, cropped_image, JSON_HELPER=OCR_HELPER, ocr_co
         xmin, xmax = image_width*landmark_region[1][0],image_width*landmark_region[1][1]
         ymin, ymax = image_height*landmark_region[0][0],image_height*landmark_region[0][1]
         # print("base : ", zone)
+        # plt.imshow(cropped_image[int(ymin):int(ymax), int(xmin):int(xmax)])
+        # plt.show()
         landmarks_coord = []
         null = 0 # Relay if an OCR on a biggest area is needed
         for indexes_cor in detected_indexes_cor:
@@ -219,6 +222,7 @@ def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, f
         data = ocr_config[3]
         local_OCR = pytesseract.image_to_data(searching_area, output_type=pytesseract.Output.DICT, lang=data, config=config)
         local_OCR["text"] = _text_filter(local_OCR["text"])
+        # print(local_OCR["text"])
         candidate_sequences, candidate_indexes = _process_raw_text_to_sequence(local_OCR["text"])
         # print(candidate_sequences)
         res_dict["OCR"], res_dict["type"], res_dict["box"] = local_OCR, box_type, [int(y_min), int(y_max), int(x_min), int(x_max)]
@@ -765,7 +769,7 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
         if OCR_and_text_full_dict["indexes"] != [] :
             if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                 OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-                
+        print(zone, " : ", OCR_and_text_full_dict["sequences"])
         res_dict_per_zone[zone] = OCR_and_text_full_dict
     return res_dict_per_zone 
 

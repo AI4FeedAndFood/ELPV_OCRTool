@@ -100,7 +100,7 @@ def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
         result_file.write(xml.decode())
     plt.imsave(save_im_path, cropped_image)
     
-def TextCVTool(path, custom_config=TESSCONFIG):
+def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
     """The final tool to use with the GUI
 
     Args:
@@ -123,7 +123,8 @@ def TextCVTool(path, custom_config=TESSCONFIG):
         image = images[i]
         name = images_names[i]
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image)
+        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, def_format=def_format)
+        print(f"Le format de la fiche {name} est :", format)
         if format == "landscape":
             landscape_dict_res = ProcessLandscape(cropped_image)
             for dict_name, landscape_dict in landscape_dict_res.items():
@@ -153,5 +154,5 @@ if __name__ == "__main__":
     
     print("start")
     path = r"C:\Users\CF6P\Desktop\cv_text\Data\landscape"
-    TextCVTool(path, custom_config=TESSCONFIG)
-    
+    TextCVTool(path, custom_config=TESSCONFIG, def_format="landscape")
+        

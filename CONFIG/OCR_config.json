@@ -28,14 +28,14 @@
         "Globodera pallida","Globodera rostochiensis", "Naccobus aberrans", "PVY", "Jambe noire", "PLRV"],
         
         "variete" : ["ACOUSTIC", "ADENA", "ADORA", "AGATA","AGRIA", "ALANIS", "ALIANS", "ALCMARIA", "ALTESSE", "ALOUETTE", "AMANDINE", "AMIGO", "AMYLA", "ANAIS", 
-        "ANNABELLE", "ANOE", "AROSOSTA", "ARTEMIS", "AUSTIN", "AVANTI", "BABYLON", "BERGERAC", "BERLINE", "BERNADETTE", "BINTJE", "BLANCHE", 
+        "ANNABELLE", "ANOE", "AROSOSTA", "ARTEMIS", "AURIERA", "AUSTIN", "AVANTI", "BABYLON", "BANBA","BERGERAC", "BERLINE", "BERNADETTE", "BINTJE", "BLANCHE", 
         "BROOKE", "CAESAR", "CAMEL", "CAMELIA", "CAMMEO", "CARLITA", "CAROLUS", "CELTIANE", "CARRERA","CEPHORA", "CHALLENGER", "CHARLOTTE", 
         "CHARMEUSE", "COLOMBA", "CHERIE", "CHEYENNE", "CICERO", "DAISY", "DELIKATESS", "DESIREE", "DITTA", "DONATA", "EL MUNDO", "EERSTELING", "ETANA", "EUROVIVA", "ESMEE",
         "ESMERALDA", "EVOLUTION", "EXCELLENCY", "FAVOLA", "FELSINE", "FLEUR BLEU", "FONTANE", "FORZA", "FRANCELINE", "FRESQUIENNE", "GEORGINA", "GOLDMARIE",
         "GOURMANDINE", "HANSA", "HERACLEA", "HONORANA", "IMPALA", "INNOVATOR", "JAZZY", "JELLY", "JOLENE", "KARDAL", "KING RUSSET", "LADY ALICIA", "LADY AMARILLA",
         "LADY ROSETTA", "LADY CHRISTEL", "LADY CHRIST'L", "LADY CHRISTL", "LADY JANE", "LANORMA", "LAURETTE", "LAVIE", "LA VERDRY","LINUS", "LISETA", "LUCINDA", "LUDIMILLA", "MANITOU", 
-        "MARABEL", "MARILYN", "MARISOL", "MARKIES", "MELODY", "MEMPHIS", "MICHELLE", "MILVA", "MISS BLUSH", "MONALISA", "MOZART", "NAPOLEON","NASKA", "NAZCA", "NICOLAS", "NOBLESSE",
-        "NIRVANA", "NORMANDINE", "ORCHESTRA", "OTOLIA", "PARIS", "PERLINE", "PREMIERE", "PRIMAVERA", "PRINCE", "QUENNE", "RACKAM", "RATTE", "RED SCARLETTE", "REGINA", 
+        "MARABEL", "MARILYN", "MARISOL", "MARKIES", "MELODY", "MEMPHIS", "MICHELLE", "MILVA", "MISS BLUSH", "MONALISA", "MONIQUE","MOZART", "NAPOLEON","NASKA", "NAZCA", "NICOLAS", "NOBLESSE",
+        "NIRVANA", "NORMANDINE", "ORCHESTRA", "OTOLIA", "PARIS", "PERLINE", "PRADA", "PREMIERE", "PRIMAVERA", "PRINCE", "QUENNE", "QUENE ANNE", "RACKAM", "RATTE", "RED SCARLETTE", "REGINA", 
         "ROSABELLE", "ROUSSEAU", "ROYAL", "RUDOLF", "RUDOLPH", "RUSSET", "RUMBA", "SINORA", "SIROCA", "SIRTEMA", "SOUND", "SURYA", "SPONTA", "SPUNTA", "STEMSTER","SURYA", "TAISIYA",
         "Talentine", "TWINNER", "UNIVERSA", "VALENCIA", " VALERIE", "VICTORIA", "VENIZIA", "VIOLET QUEEN", "VITABELLA", "YONA", "ZEN"],
         
@@ -218,35 +218,35 @@
 
     "landscape" : {
         "N_d_echantillon" : {
-            "subregion" : [[0.45, 1], [0, 0.1]],
+            "subregion" : [[0.35, 1], [0, 0.1]],
             "key_sentences" : [["echantillon"]],
             "merged" : 0,
             "theorical_col" : 1,
             "conditions" : [["cell"]]           
         },
         "nom" : {
-            "subregion" : [[0.45, 1], [0.08, 0.25]],
+            "subregion" : [[0.35, 1], [0.08, 0.25]],
             "key_sentences" : [["N° identification", "du"], ["producteur", "de", "la", "culture"]],
             "merged" : 1,
             "theorical_col" : 2,
             "conditions" : [["cell"]] 
         },
         "date_de_prelevement" : {
-            "subregion" : [[0.45, 1], [0.2, 0.35]],
+            "subregion" : [[0.35, 1], [0.2, 0.35]],
             "key_sentences" : [["Date"], ["prelevement"]],
             "merged" : 0,
             "theorical_col" : 3,
             "conditions" : [["date"]]
         },
         "variete" : {
-            "subregion" : [[0.45, 1], [0.55, 0.7]],
+            "subregion" : [[0.35, 1], [0.55, 0.7]],
             "key_sentences" : [["Variete"]],
             "merged" : 1,
             "theorical_col" : 6,
             "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
-            "subregion" : [[0.45, 1], [0.6,0.85]],
+            "subregion" : [[0.35, 1], [0.6,0.85]],
             "key_sentences" : [["Lieu", "du", "prelevement"]],
             "merged" : 1,
             "theorical_col" : 7,

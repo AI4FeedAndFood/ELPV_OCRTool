@@ -24,8 +24,8 @@ def fit_the_screen(X_loc):
         if X_loc<x+width:
             return int(0.95*width), int(0.95*height)
 
-def use_the_tool(folderPath):
-    images_names, res_dict_per_image, images = TextCVTool(folderPath)
+def use_the_tool(folderPath, def_format="default"):
+    images_names, res_dict_per_image, images = TextCVTool(folderPath, def_format=def_format)
     return images_names, res_dict_per_image, images
 
 def checkboxs_for_parasite(parasite_list, found_parasites):
@@ -223,21 +223,20 @@ def runningSave(save_path_json, verified_imageDict, image_name, res_dict):
     with open(save_path_json, 'w', encoding='utf-8') as f:
         json.dump(res_dict, f,  ensure_ascii=False)
         
-def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, res_path, out_path="", xml_name="verified_XML"):
+def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="", xml_name="verified_XML"):
+    if out_path:
+        new_xml = os.path.join(out_path, xml_name)
+        if not os.path.exists(new_xml):
+            os.makedirs(new_xml)
+            
     for scan_name, scan_dict in verified_dict.items(): 
         clean_dict = convertDictToLIMS(scan_dict, scan_name, CLIENT_CONTRACT_DF)
         xml = dicttoxml.dicttoxml(clean_dict)
         with open(os.path.join(xml_save_path, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
             result_file.write(xml.decode())
-    
-    if out_path:
-        new_xml =  os.path.join(out_path, xml_name)
-        i_test = 1
-        while os.path.exists(new_xml):
-            new_xml = os.path.join(out_path, xml_name+ f"_{i_test}")
-            i_test+=1
-        os.rename(xml_save_path, new_xml)
-        # shutil.rmtree(res_path)
+        if out_path:
+            with open(os.path.join(new_xml, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
+                result_file.write(xml.decode())
 
 def adapt_landscape(images_names_dict, images, images_names):
     res_images, res_names = [], []
@@ -256,7 +255,7 @@ def adapt_landscape(images_names_dict, images, images_names):
 def main():
     welcomeLayout = [
         [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL_PATH"]["input_folder"], key="-PATH-"), 
-         sg.FolderBrowse(button_color="cornflower blue")],
+         sg.FolderBrowse(button_color="cornflower blue"), sg.Checkbox(' Format SEMAE', default=False, key=f"landscape")],
         [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme", button_color="medium sea green"), sg.Push()]
     ]
     window_title = GUIsettings["GUI"]["title"]
@@ -299,7 +298,8 @@ def main():
                         welcomWindow.close()
                         print("------ START -----")
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
-                        images_names, res_dict_per_image, images = use_the_tool(givenPath)
+                        def_format = "landscape" if values["landscape"] else "default"
+                        images_names, res_dict_per_image, images = use_the_tool(givenPath, def_format=def_format)
                         print("------ DONE -----")
                         with open(save_path_json, 'w', encoding='utf-8') as json_file:
                             json.dump(res_dict_per_image, json_file,  ensure_ascii=False) # Save the extraction json on RES
@@ -393,7 +393,7 @@ def main():
                                         choice = sg.popup_ok("Il n'y a pas d'image suivante. Finir l'analyse ?", button_color="dark green")
                                         if choice == "OK":
                                             json_file.close() # Close the file
-                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, res_path, LIMSsettings["TOOL_PATH"]["output_folder"])
+                                            finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, out_path=LIMSsettings["TOOL_PATH"]["output_folder"])
                                             VerificationWindow.close()
                                             break
                                     else: 

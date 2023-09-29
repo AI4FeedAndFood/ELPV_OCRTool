@@ -13,7 +13,7 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from ProcessPDF import binarized_image, HoughLines
+from ProcessPDF import binarized_image, HoughLines, agglomerate_lines
 from TextExtraction import get_candidate_local_OCR, common_mistake_filter, select_text
 
 whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
@@ -120,14 +120,19 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     # Get dots thanks to HSV filtering
     HSV_im = HSV_image(cropped_image)
     contours, mask  = get_contours(HSV_im, conditions_dict)
-    dots = get_bounding_boxes(contours)
-    _, centers = zip(*dots)
-    centers = list(centers)
-    centers = [list(c) for c in centers]
     
     # Binarized then delete dots
     processed_image = binarized_image(cropped_image)
     processed_image[mask == 255] = 255
+    
+    dots = get_bounding_boxes(contours)
+    if dots == []:
+        print("PAS DE POINT TROUVE")
+        return [], processed_image
+    _, centers = zip(*dots)
+    centers = list(centers)
+    centers = [list(c) for c in centers]
+    
     # Apply the rotation for imag and dots according to the orientation
     k_90 = 3
     if centers[0][1]<abs(centers[0][1]-Y): # Dots indicates if the paper is from top to bottom or bottom to top
@@ -211,17 +216,22 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
     """
     (cst, var) = (0,1) if mode == "vertical"  else (1,0) # vertical means the x axis (index 0) is cst
     xy_position = position[0] if type(position[0])==type((0,0)) else position[:2]
-    
     if var_match:
         lines = [line for line in lines if min(line[0][var], line[1][var])<=xy_position[var]<=max(line[0][var], line[1][var])]
     shift = lambda x: x[0][cst]-xy_position[cst]
-    first_line = min([line for line in lines if shift(line)<=0], key=lambda x: -shift(x))
-    second_line = min([line for line in lines if shift(line)>=0], key=lambda x: shift(x))
+    linf = [line for line in lines if shift(line)<=0]
+    lsup = [line for line in lines if shift(line)>=0]
+    
+    first_line = min(linf, key=lambda x: -shift(x)) if len(linf) !=0 else []
+    second_line = min(lsup, key=lambda x: shift(x)) if len(lsup) !=0 else []
+        
     return first_line, second_line    
 
 def ProcessLandscape(cropped_image):
     # Find dots in the scan and the flip&croped image
     dots, processed_image =  get_dots_and_final_image(cropped_image, OCR_HELPER["landscape_HSV"])
+    if dots == []:
+        return {}
     # Find lines in the scan
     vertical_lines = HoughLines(processed_image)
     # Delete lines that are not from the table
@@ -229,10 +239,10 @@ def ProcessLandscape(cropped_image):
     lines = {
         "vertical" : extend_lines(vertical_lines),
         "horizontal" : HoughLines(processed_image, mode="horizontal")
-    }
+        }
     # Clean the image from the scan to increase OCR performances
     processed_image = delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"])
-    delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"], show=False)
+    # delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"], show=True)
     # Find columns header
     _, landmarks_dict = get_data_and_landmarks(format, processed_image)
     # Get columns frame vertical lines
@@ -241,9 +251,12 @@ def ProcessLandscape(cropped_image):
         landmark_boxes =  landmarks_dict[zone]["landmark"]
         col = Column(name=zone, landmark_boxes=landmark_boxes, dict=key_points)
         
-        if "found" in [box[0] for box in landmark_boxes]: 
+        if "found" in [box[0] for box in landmark_boxes]:
+            col.status = "found"
             f_index = [box[0] for box in landmark_boxes].index("found")
-            col.left_line, col.right_line = get_frame_lines(landmark_boxes[f_index][1], lines["vertical"])      
+            box = landmark_boxes[f_index][1]
+            xy_col = [box[0]+box[2]/4, box[1]+box[3]/4] # Frame the upper left corner  
+            col.left_line, col.right_line = get_frame_lines(xy_col, lines["vertical"])      
         else :
             theorical_col = key_points["theorical_col"]
             col.left_line, col.right_line = lines["vertical"][theorical_col-1], lines["vertical"][theorical_col]
@@ -259,16 +272,17 @@ def ProcessLandscape(cropped_image):
             
             if col.dict["merged"]:
                 x_left, x_right = left_line[0][0], right_line[0][0]
-                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.95, 0.75, 0.5, 0.25, 0.05]]
+                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.90, 0.75, 0.5, 0.25, 0.1]]
                 upper_frame, lower_frame = [], []
                 for position in xy_left_mid_right:
                     upper_merge, lower_merge = get_frame_lines(position, lines["horizontal"], mode="horizontal", var_match=True)
                     upper_frame.append(upper_merge)
                     lower_frame.append(lower_merge)
-                upper_line = max(upper_frame, key=lambda x: x[0][1])
-                lower_line = min(lower_frame, key=lambda x: x[0][1])
-                
+                upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
+                lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
+            
             cell_box = [left_line[0][0], upper_line[0][1], abs(right_line[0][0]-left_line[0][0]), abs(lower_line[0][1]-upper_line[0][1])] # x,y,w,h
+            # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
             candidate_OCR_list = get_candidate_local_OCR(processed_image, landmark_boxes=[["found", cell_box, 1]], relative_positions=[[[0,1], [0,1]]], format="landscape", ocr_config=TESSCONFIG)[0]
             candidate_OCR_list_filtered = condition_filter([candidate_OCR_list], col.dict["key_sentences"], col.dict["conditions"])
             clean_OCRs_and_candidates = common_mistake_filter(candidate_OCR_list_filtered, col.name)
@@ -277,15 +291,14 @@ def ProcessLandscape(cropped_image):
             if OCR_and_text_full_dict["indexes"] != [] :
                 if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
                     OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-            
             if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
                 OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
                 
             res_dict_per_zone[col.name] = OCR_and_text_full_dict
-            
+            print(OCR_and_text_full_dict["sequences"])
         res_dict_per_zone["parasite_recherche"] = {
             "OCR" : {"conf" : [1]},
-            "sequences" : [['rhizomanie']],
+            "sequences" : [['Rhizomanie']],
             "indexes" : [0]
             }
         

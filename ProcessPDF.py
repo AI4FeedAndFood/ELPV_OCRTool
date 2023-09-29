@@ -34,7 +34,46 @@ def binarized_image(image):
     thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY+cv2.THRESH_OTSU)[1]
     return thresh
 
-def _split_table_landscape(processed_image, rectangles):
+def get_iou(a, b, epsilon=1e-5):
+    """ Given two boxes `a` and `b` defined as a list of four numbers:
+            [x1,y1,x2,y2]
+        where:
+            x1,y1 represent the upper left corner
+            x2,y2 represent the lower right corner
+        It returns the Intersect of Union score for these two boxes.
+
+    Args:
+        a:          (list of 4 numbers) [x1,y1,x2,y2]
+        b:          (list of 4 numbers) [x1,y1,x2,y2]
+        epsilon:    (float) Small value to prevent division by zero
+
+    Returns:
+        (float) The Intersect of Union score.
+    """
+    # COORDINATES OF THE INTERSECTION BOX
+    x1 = max(a[0], b[0])
+    y1 = max(a[1], b[1])
+    x2 = min(a[2], b[2])
+    y2 = min(a[3], b[3])
+
+    # AREA OF OVERLAP - Area where the boxes intersect
+    width = (x2 - x1)
+    height = (y2 - y1)
+    # handle case where there is NO overlap
+    if (width<0) or (height <0):
+        return 0.0
+    area_overlap = width * height
+
+    # COMBINED AREA
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    area_combined = area_a + area_b - area_overlap
+
+    # RATIO OF AREA OF OVERLAP OVER COMBINED AREA
+    iou = area_overlap / (area_combined+epsilon)
+    return iou
+
+def _rect_table(processed_image, rectangles, format=""):
     
     def _process_rectangles(rectangles, format):        
         maxarea = 0
@@ -69,7 +108,7 @@ def _split_table_landscape(processed_image, rectangles):
         # im = processed_image.copy()
         # box = cv2.boxPoints([xy, wh, rot])
         # box = np.int0(box)
-        # cv2.drawContours(im, [box], 0, (0,0,255), 8)
+        # cv2.drawContours(im, [box], 0, (0,0,0), 20)
         # plt.imshow(im, cmap="gray")
         # plt.show()
         
@@ -77,20 +116,12 @@ def _split_table_landscape(processed_image, rectangles):
     
     y,x = processed_image.shape
     if len(rectangles)>2: # Clean if there is a black border of the scan wich is concider as a contour
-        rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]
-        
-    sorted_x, sorted_y = sorted(rectangles, key=lambda x: x[0][0]), sorted(rectangles, key=lambda x: x[0][1])
-    Dx, Dy = (sorted_x[-1][0][0]-sorted_x[0][0][0]), (sorted_y[-1][0][1]-sorted_y[0][0][1])
-    if Dx > Dy:
-        format = "landscape"
-    else:
-        format = "table"
-        
+        rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]        
     rectangle = _process_rectangles(rectangles, format)
 
-    return format, rectangle
+    return rectangle
     
-def get_rectangle(processed_image, kernel_size=(3,3)):
+def get_rectangle(processed_image, kernel_size=(3,3), def_format=""):
     """
     Extract the minimum area rectangle containg the text. 
     Thanks to that detect if the image is a TABLE format or not.
@@ -112,12 +143,33 @@ def get_rectangle(processed_image, kernel_size=(3,3)):
         return []
 
     rectangles = [cv2.minAreaRect(contour) for contour in contours]
-    rectangles = [list(rect) for rect in rectangles if rect[1][0]*rect[1][1]>x*y/12]
-
-    if len(rectangles)==1:
-        return "hand_or_check", rectangles[0]
+    rectangles =  [list(rect) for rect in rectangles if rect[1][0]*rect[1][1]>x*y/12] if def_format == "landscape" else [list(rect) for rect in rectangles if rect[1][0]>x/3 and rect[1][1]>y/8]
+    
+    filtered_rects = []
+    coord = lambda x: [int(x[0][0]-x[1][0]/2), int(x[0][1]-x[1][1]/2), int(x[0][0]+x[1][0]/2), int(x[0][1]+x[1][1]/2)]
+    for rect in rectangles:
+        if 45<rect[-1]:
+                rect[1] = (rect[1][1], rect[1][0])
+                rect[-1] = 90-rect[-1]
+        overlap_found = False
+        for f_rect in filtered_rects:
+            coord1 = coord(rect)
+            coord2 = coord(f_rect)
+            iou = get_iou(coord1, coord2)
+            if iou > 0.2 :
+                overlap_found = True
+                break
+        if not overlap_found:
+            filtered_rects.append(rect)
+            
+    if def_format == "landscape":
+        format = "landscape"
+        return def_format, _rect_table(processed_image, filtered_rects, format=format)
+    
+    if len(filtered_rects)==1:
+        return "hand_or_check", filtered_rects[0]
     else:
-        return _split_table_landscape(processed_image, rectangles)
+        return "table", _rect_table(processed_image, filtered_rects)
 
 def crop_and_rotate(processed_image, rect):
     """Crop the blank part around the found rectangle.
@@ -195,12 +247,35 @@ def HoughLines(bin_image, mode="vertical"):
         # Extracted points nested in the list
         x1,y1,x2,y2=points[0]
         line  = [(x1,y1),(x2,y2)]
-        # Delete lines in bias
-        if abs(line[0][cst]-line[1][cst])<10:
+        if abs(line[0][cst]-line[1][cst])<20:
             lines_list.append(line)
-    lines_list = sorted(lines_list, key=lambda x: x[0][cst])
+    return lines_list 
 
-    return lines_list
+def agglomerate_lines(lines_list, mode = "vertical"):
+    (cst, var) = (0,1) if mode == "vertical"  else (1,0) # The specified axis is the constant one
+    #Delete to closed vertical lines
+    threshold = 90 if mode == "vertical" else 50
+    clean_lines_list = []
+    agglomerate_lines = []
+    for i, line in enumerate(lines_list):
+        if not i in agglomerate_lines:
+            new_line = line
+            for j in range(i+1, len(lines_list)):
+                if not j in agglomerate_lines :
+                    test_line = lines_list[j]
+                    condition_1 = abs((new_line[0][cst]+new_line[1][cst])/2 - (test_line[0][cst]+test_line[1][cst])/2) < threshold # Close enough
+                    m, M = min(new_line[0][var], new_line[1][var]), max(new_line[0][var], new_line[1][var])
+                    condition_2 = (m<max(test_line[0][var], test_line[1][var]<M) or m<min(test_line[0][var], test_line[1][var])<M) # Overlap
+                    if condition_1 and condition_2:
+                        agglomerate_lines.append(j)
+                        cst_M = int((min(new_line[0][cst], new_line[1][cst], test_line[0][cst], test_line[1][cst]) + max(new_line[0][cst], new_line[1][cst], test_line[0][cst], test_line[1][cst]))/2)
+                        var_1, var_2 = min(new_line[0][var], new_line[1][var], test_line[0][var], test_line[1][var]), max(new_line[0][var], new_line[1][var], test_line[0][var], test_line[1][var])
+                        res = [[0,0], [0,0]] # New line may not support tuple assignment
+                        res[0][cst], res[1][cst], res[0][var], res[1][var] = cst_M, cst_M, var_1, var_2
+                        new_line = res
+            clean_lines_list.append(new_line)
+    clean_lines_list = sorted(clean_lines_list, key=lambda x: x[0][cst])
+    return(clean_lines_list)
     
 def get_preprocessed_image(image):
     """The main function to process an image from head to tail
