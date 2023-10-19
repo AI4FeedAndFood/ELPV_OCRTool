@@ -99,7 +99,6 @@ def getAllImages(path):
         images += new_images
     
     for image in image_in_folder:
-        print(image)
         new_images = np.array(cv2.imread(os.path.join(path,image)))
         images_names += [os.path.splitext(image)[0]]
         images.append(new_images)

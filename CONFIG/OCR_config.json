@@ -2,7 +2,7 @@
     "checkbox": {
         "check" : { 
             "type_lot" : {
-                "list" :  ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee"],
+                "list" :  ["Surveillance", "SORE", "PP", "Export", "Inspection privee"],
                 "cross_path" : "reference_images\\cross_checkbox.png",
                 "empty_path" : "reference_images\\empty_checkbox.png"
             }
@@ -37,9 +37,9 @@
         "MARABEL", "MARILYN", "MARISOL", "MARKIES", "MELODY", "MEMPHIS", "MICHELLE", "MILVA", "MISS BLUSH", "MONALISA", "MONIQUE","MOZART", "NAPOLEON","NASKA", "NAZCA", "NICOLAS", "NOBLESSE",
         "NIRVANA", "NORMANDINE", "ORCHESTRA", "OTOLIA", "PARIS", "PERLINE", "PRADA", "PREMIERE", "PRIMAVERA", "PRINCE", "QUENNE", "QUENE ANNE", "RACKAM", "RATTE", "RED SCARLETTE", "REGINA", 
         "ROSABELLE", "ROUSSEAU", "ROYAL", "RUDOLF", "RUDOLPH", "RUSSET", "RUMBA", "SINORA", "SIROCA", "SIRTEMA", "SOUND", "SURYA", "SPONTA", "SPUNTA", "STEMSTER","SURYA", "TAISIYA",
-        "Talentine", "TWINNER", "UNIVERSA", "VALENCIA", " VALERIE", "VICTORIA", "VENIZIA", "VIOLET QUEEN", "VITABELLA", "YONA", "ZEN"],
+        "TALENTINE", "TWINNER", "UNIVERSA", "VALENCIA", " VALERIE", "VICTORIA", "VENIZIA", "VIOLET QUEEN", "VITABELLA", "YONA", "ZEN"],
         
-        "lot": ["Surveillance", "SORE", "PP", "CMO", "Export", "Inspection privee", "Introduction", "Exportation"],
+        "lot": ["Surveillance", "SORE", "Export",  "Exportation", "Suivi",  "Introduction", "Gestion"],
 
         "pays" : ["France", "Pays Bas", "Belgique", "Hollande", "Allemagne", "Germany", "Espagne",
                      "Italie" , "Suisse", "Pays-Bas"]

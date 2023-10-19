@@ -10,6 +10,9 @@ from copy import deepcopy
 from screeninfo import get_monitors
 from PIL import Image
 
+OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
+OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))
+
 from LaunchTool import getAllImages, TextCVTool, getAllImages
 
 def is_valid_path(folderpath):
@@ -47,7 +50,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
     
     # Returned the tool's response for each field
     for zone, landmark_text_dict in image_dict.items():
-        if not zone in ["client_name", "contract_name", "n_copy"]:
+        if not zone in ["client_name", "contract_name", "n_copy", "ref_echantillon"]:
             clean_zone_name = conversion_dict[zone]
             text = f"{clean_zone_name} : "
             sequence = landmark_text_dict["sequences"]
@@ -61,7 +64,6 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                 
             if zone == "parasite_recherche":
                 n_list = len(sequence)
-                seq = ""
                 found_col, not_found_col = checkboxs_for_parasite(PARASITES_LIST, sequence)
                 text = f"{clean_zone_name} : {n_list} proposé.s"
                 
@@ -69,7 +71,17 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                 # lineLayout.append([sg.HorizontalSeparator(key='sep')])
                 lineLayout.append([sg.Text("Ajouter si besoin", s=(25,1)), sg.Column(not_found_col, scrollable=True, size=(int(X_dim*0.15),
                                                                                                                             int(Y_dim*0.035*len(not_found_col))))])
-            
+            elif zone == "type_lot":
+                type_list = list(LIMSsettings["TYPE_LOT"].keys())
+                default = "Surveillance"
+                for type in type_list:
+                    if sequence in LIMSsettings["TYPE_LOT"][type]:
+                        default=type
+                        break
+                lineLayout.append([sg.Text(text, s=(25,1)),
+                                sg.Combo(type_list, default_value=default, background_color=back_color,
+                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))])
+
             elif len(sequence)>=INPUT_LENGTH:
                 lineLayout.append([sg.Text(text, s=(25,1)),
                                 sg.Multiline(sequence, background_color=back_color,
@@ -79,10 +91,14 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                                 sg.I(sequence, background_color=back_color,
                                 key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='center')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
-    # Checkbox for "sol, pdt ou betterave"
-    # lineLayout.append([sg.Radio("Pomme de terre", default=True, key="-pdt-", group_id=0),
-    #                    sg.Radio("Sol", default=False, key="-sol-", group_id=0),
-    #                    sg.Radio("Betterave", default=False, key="-bettervae-", group_id=0)])
+    
+    # Combo for Reference Echantillon
+    default_ref = "Tubercule"
+    if "ref_echantillon" in list(image_dict.keys()):
+        default_ref = image_dict["ref_echantillon"]["sequences"]
+    lineLayout.append([sg.Text("Référence échantillon : ", s=(25,1)),
+                        sg.Combo(["Sol", "Tubercule", "Plant de pomme de terre", "Betterave"], default_value=default_ref,
+                                key=f"-ref_echantillon-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))])
     
     return lineLayout
     
@@ -164,6 +180,45 @@ def choice_overwrite_continue_popup(general_text, red_text, green_text):
     window.close()
     return event
 
+def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, VerificationWindow, ClientSuggestionW, contractSuggestionW):
+    if verif_event == "-client_name-":
+            client_text = verif_values["-client_name-"]
+            client_sugg = sorted([client for client in CLIENT_LIST if client_text.lower() in client.lower()])
+            if client_text and client_sugg:
+                if ClientSuggestionW :
+                    ClientSuggestionW["-AUTO_CLIENT-"].update(values=client_sugg)
+                    ClientSuggestionW.refresh()
+                elif len(client_text)>2 :
+                    ClientSuggestionW = ClientSuggestionWindow(client_sugg, VerificationWindow)                
+                                                                
+    if verif_event == '-AUTO_CLIENT-':
+        ClientSuggestionW.close()
+        ClientSuggestionW = False
+        text = verif_values['-AUTO_CLIENT-'][0]
+        VerificationWindow['-client_name-'].update(value=text)
+        
+        CONTRACT_LIST = sorted(list(CLIENT_CONTRACT_DF[CLIENT_CONTRACT_DF["clientname"]== text]["contractname"].unique()))
+        VerificationWindow['-contract_name-'].update(disabled=False, background_color=sg.theme_input_background_color())
+        VerificationWindow['-client_name-'].set_focus()
+        
+    if verif_event == "-contract_name-":
+        contract_text = verif_values["-contract_name-"]
+        contract_sugg = [contract for contract in CONTRACT_LIST if contract_text.lower() in contract.lower()]
+        if contract_text and contract_sugg:
+            if contractSuggestionW :
+                contractSuggestionW["-AUTO_CONTRACT-"].update(values=contract_sugg)
+                contractSuggestionW.refresh()
+            else :
+                contractSuggestionW = ContractSuggestionWindow(contract_sugg, VerificationWindow)                                                                                   
+    if verif_event == '-AUTO_CONTRACT-':
+        contractSuggestionW.close()
+        contractSuggestionW = False
+        text = verif_values['-AUTO_CONTRACT-'][0]
+        VerificationWindow['-contract_name-'].update(value=text)
+        VerificationWindow['-contract_name-'].set_focus()
+    
+    return  CONTRACT_LIST, verif_event, verif_values, VerificationWindow, ClientSuggestionW, contractSuggestionW
+
 def check_n_copy(verif_values, X_loc, Y_loc):
     try:
         n_copy = int(verif_values["n_copy"])
@@ -238,6 +293,7 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
 
 def runningSave(save_path_json, verified_imageDict, image_name, res_dict, n_copy):
     res_dict["RESPONSE"][image_name].update({"n_copy" : n_copy})
+    res_dict["RESPONSE"][image_name].update({"ref_echantillon" : {"sequences" : "" }})
     res_dict["RESPONSE"][image_name].update({"client_name" : {"sequences" : "" }})
     res_dict["RESPONSE"][image_name].update({"contract_name" : {"sequences" : "" }})
     for key, items in verified_imageDict.items():
@@ -339,9 +395,9 @@ def main():
                         welcomWindow.close()
                         start = True
                         if images_names_dict != images_names:
-                            sg.popup_ok(f"Les images {str(list(set(images_names_dict+images_names)))} ne se trouvent pas dans l'analyse précédente.")
+                            sg.popup_ok(f"Attention : Les images précédemment analysées et celles dans le dossier ne sont pas identiques")
                     if continue_or_smash == "overwrite":
-                        sg.popup_auto_close("L'agorithme va démarrer !\nSuivez l'évolution dans le terminal", auto_close_duration=5)
+                        sg.popup_auto_close("L'agorithme va démarrer !\nSuivez l'évolution dans le terminal", auto_close_duration=2)
                         welcomWindow.close()
                         print("------ START -----")
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
@@ -389,43 +445,14 @@ def main():
                                 verif_window, verif_event, verif_values = sg.read_all_windows()
                                 if verif_event == sg.WINDOW_CLOSED:
                                     break
+
                                 if verif_event == "-consignes-":
-                                    sg.popup_scrolled(GUIsettings["UTILISATION"]["texte"], title="Consignes d'utilisation", size=(50,10))                              
-                                if verif_event == "-client_name-":
-                                    client_text = verif_values["-client_name-"]
-                                    client_sugg = sorted([client for client in CLIENT_LIST if client_text.lower() in client.lower()])
-                                    if client_text and client_sugg:
-                                        if ClientSuggestionW :
-                                            ClientSuggestionW["-AUTO_CLIENT-"].update(values=client_sugg)
-                                            ClientSuggestionW.refresh()
-                                        elif len(client_text)>2 :
-                                            ClientSuggestionW = ClientSuggestionWindow(client_sugg, VerificationWindow)                
-                                                                                     
-                                if verif_event == '-AUTO_CLIENT-':
-                                    ClientSuggestionW.close()
-                                    ClientSuggestionW = False
-                                    text = verif_values['-AUTO_CLIENT-'][0]
-                                    VerificationWindow['-client_name-'].update(value=text)
-                                    
-                                    CONTRACT_LIST = sorted(list(CLIENT_CONTRACT_DF[CLIENT_CONTRACT_DF["clientname"]== text]["contractname"].unique()))
-                                    VerificationWindow['-contract_name-'].update(disabled=False, background_color=sg.theme_input_background_color())
-                                    VerificationWindow['-client_name-'].set_focus()
-                                    
-                                if verif_event == "-contract_name-":
-                                    contract_text = verif_values["-contract_name-"]
-                                    contract_sugg = [contract for contract in CONTRACT_LIST if contract_text.lower() in contract.lower()]
-                                    if contract_text and contract_sugg:
-                                        if contractSuggestionW :
-                                            contractSuggestionW["-AUTO_CONTRACT-"].update(values=contract_sugg)
-                                            contractSuggestionW.refresh()
-                                        else :
-                                            contractSuggestionW = ContractSuggestionWindow(contract_sugg, VerificationWindow)                                                                                   
-                                if verif_event == '-AUTO_CONTRACT-':
-                                    contractSuggestionW.close()
-                                    contractSuggestionW = False
-                                    text = verif_values['-AUTO_CONTRACT-'][0]
-                                    VerificationWindow['-contract_name-'].update(value=text)
-                                    VerificationWindow['-contract_name-'].set_focus()    
+                                    sg.popup_scrolled(GUIsettings["UTILISATION"]["texte"], title="Consignes d'utilisation", size=(50,10))
+
+                                if verif_event in ["-client_name-", '-AUTO_CLIENT-', "-contract_name-", '-AUTO_CONTRACT-']:
+                                    processed = process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, VerificationWindow, ClientSuggestionW, contractSuggestionW)
+                                    CONTRACT_LIST, verif_event, verif_values, VerificationWindow, ClientSuggestionW, contractSuggestionW = processed
+
                                 if verif_event == "Valider ->":
                                     if contractSuggestionW : contractSuggestionW.close()
                                     if ClientSuggestionW : ClientSuggestionW.close()
@@ -435,6 +462,7 @@ def main():
                                             client_warning=True
                                     # Check "n_copie" format
                                     n_copy, copy_status = check_n_copy(verif_values, X_loc, Y_loc)
+
                                     if copy_status:
                                         # If not last image
                                         last_info = [verif_values["-client_name-"], verif_values['-contract_name-']]

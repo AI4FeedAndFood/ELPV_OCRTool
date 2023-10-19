@@ -23,13 +23,14 @@
         "N_d_echantillon" : ["Sample", "CustomerReference"],
         "date_de_prelevement" : ["AdditionalField", "M005"],
         "nom"  : ["AdditionalField", "LN478"],
-        "type_lot" : ["AdditionalField", "IP001"],
         "variete" : ["AdditionalField", "AAA036_variete"],
         "localisation_prelevement" :["AdditionalField", "IP004"],
         "pays_d_origine" : ["AdditionalField", "AAA036_pays_origine"],
         "N_de_scelle" : ["AdditionalField", "IP005"],
         "N_de_lot" : ["AdditionalField", "AAM008"],
-        "parasite_package" : ["Sample", "TestCode"]
+        "parasite_package" : ["Sample", "TestCode"],
+        "type_lot" : ["AdditionalField", "IP001"],
+        "ref_echantillon" : ["Sample", "ReferenceEchantillon"]
     },
     "UNIT_TEST_CODE" : {
         "IP09F" : "Rhizomanie",
@@ -55,5 +56,12 @@
         "PIPT3" : ["IP01A", "IP01M" ,"IP01L"],
         "PIP0W" : ["IP01A", "IP01L"],
         "PIPIG" : ["IP01M", "IP01A"]
+    },
+    "TYPE_LOT": {
+        "Export"  : ["SORE", "Export",  "Exportation"],
+        "Surveillance" :["Surveillance", "SORE"],
+        "Suivi introduction plant" : ["Suivi", "Introduction"],
+        "Gestion de foyer" :  [ "Gestion"],
+        "Autoproduction de plant" : ["Inspection privee"]
     }
 }
