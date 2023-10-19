@@ -1,7 +1,7 @@
 {
     "TOOL_PATH" : {
-        "input_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\test_xmls",
-        "output_folder" : "C:\\Users\\CF6P\\Desktop\\cv_text\\Data\\XMLS"
+        "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data",
+        "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS"
     },
     "CLEAN_ZONE" : {
         "N_d_echantillon" : "Numero d'echantillon",

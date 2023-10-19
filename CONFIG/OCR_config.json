@@ -49,7 +49,7 @@
         "N_d_echantillon" : {
             "subregion" : [[0, 0.25], [0.57, 1]],
             "key_sentences" : [["2", "N°", "d'echantillon", "(*)"]],
-            "relative_position" : [[[-0.5,6], [0,2]]],
+            "relative_position" : [[[-0.5,6], [0,3]]],
             "conditions" : [["echantillon", [22, 30]]]
         },
         "date_de_prelevement" : {
@@ -112,7 +112,7 @@
         "N_d_echantillon" : {
             "subregion" : [[0, 0.15], [0.57, 0.95]],
             "key_sentences" : [["2", "N°","d'echantillon", "(*)"]],
-            "relative_position" : [[[0.5,4], [0,2]]],
+            "relative_position" : [[[0.5,4], [0,3]]],
             "conditions" : [["echantillon", [20, 99]]]
         },
         "date_de_prelevement" : {

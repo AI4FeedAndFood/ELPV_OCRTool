@@ -75,13 +75,13 @@ def _find_landmarks_index(key_sentences, text): # Could be optimized
                         # print(key_word, key_candidate)
                         best_dist = distance
                         best_key_candidate = key_candidate
-                        res = [i_word-i_key, i_word-i_key+len(key_sentence)] # Start and end indexes of the found key sentence
+                        res = [i_word-i_key, min(i_word-i_key+len(key_sentence), len(text))] # Start and end indexes of the found key sentence
                         
-        cor_ratio = len(key) / (len(key) - (len(key) -len(best_key_candidate))) + 0.15
+        cor_ratio = len(key) / (len(key) - (len(key)-len(best_key_candidate))) + 0.15
         cor_ratio = max(1, min(cor_ratio, 1.3))
             
         if len(res)>0:
-            res_text =  text[res[0]:res[-1]] 
+            res_text =  text[res[0]:res[-1]]
             res_text, (start_removed, end_removed) = _landmark_word_filter(res_text)
             res[0], res[1] = res[0]+start_removed, res[1]-end_removed
         res_indexes.append((res, cor_ratio)) # Empty if not found
@@ -776,7 +776,7 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\test1\scanA.pdf"
     images = PDF_to_images(path)
     images = images[0:]
     res_dict_per_image = {}

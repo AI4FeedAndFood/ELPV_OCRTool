@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 
 # Link to the poppler wich open pdfs
 POPPLER_PATH = r"exterior_program\poppler\poppler-23.01.0\Library\bin"
-
+    
 def PDF_to_images(path, POPPLER=POPPLER_PATH):
     """ 
     Open the pdf and return all pages as a list of array

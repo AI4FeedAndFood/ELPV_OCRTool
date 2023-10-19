@@ -6,6 +6,7 @@ import dicttoxml
 import numpy as np
 from tqdm import tqdm
 from datetime import datetime
+import cv2
 
 OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH))
@@ -78,17 +79,30 @@ def save_image_EVALUATE(landmark_text_dict, cropped_image, path, i, save_path):
     fig.savefig(save_path)
     plt.close()
 
-def getAllPDFs(path):
-    pdf_in_folder = [file for file in os.listdir(path) if os.path.splitext(file)[1].lower() == ".pdf"]
-    return pdf_in_folder
-
-def getAllImages(pdf_in_folder, path):
+def getAllImages(path):
+    def _get_all_images(path, extList=[".tiff", ".tif", ".png"]):
+        docs = os.listdir(path)
+        pdf_in_folder = [file for file in docs if os.path.splitext(file)[1].lower() == ".pdf"]
+        image_in_folder = [file for file in docs if os.path.splitext(file)[1].lower() in extList]
+        return pdf_in_folder, image_in_folder
+    
+    pdf_in_folder, image_in_folder =  _get_all_images(path) # Return pathes
+    res_path = os.path.join(path, "RES")
+    if not os.path.exists(res_path):
+        os.makedirs(res_path)
     images = []
     images_names = []
+
     for pdf in pdf_in_folder:
         new_images = PDF_to_images(os.path.join(path, pdf))
         images_names += [os.path.splitext(pdf)[0]+ f"_{i}" for i in range(1,len(new_images)+1)]
         images += new_images
+    
+    for image in image_in_folder:
+        print(image)
+        new_images = np.array(cv2.imread(os.path.join(path,image)))
+        images_names += [os.path.splitext(image)[0]]
+        images.append(new_images)
     return images, images_names
 
 def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
@@ -107,12 +121,8 @@ def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
         path (path): a folder path
         custom_config (list, optional): tesseract config [oem, psm, whitelist, datatrain]
     """
-    pdf_in_folder =  getAllPDFs(path)
-    res_path = os.path.join(path, "RES")
-    if not os.path.exists(res_path):
-        os.makedirs(res_path)
     
-    images, images_names = getAllImages(pdf_in_folder, path)
+    images, images_names = getAllImages(path)
     res_image, res_image_name = [], []
     res_dict_per_image = {}
     res_dict_per_image["TESSERACT"] = TESSCONFIG
