@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 
-from ProcessPDF import get_rectangle, crop_and_rotate, binarized_image, get_iou
+from ProcessPDF import get_rectangle, crop_and_adjust, binarized_image, get_iou
 
 empty_checkbox_path = r"reference_images\empty_checkbox.png" 
 cross_checkbox_path = r"reference_images\cross_checkbox.png"
@@ -111,13 +111,13 @@ def visualize(cropped_image, filtered_objects):
 def crop_image_and_sort_format(processed_image, original_image=None, show=False, def_format=""):
     format, rect = get_rectangle(processed_image, def_format=def_format)
     if format == "landscape":
-        cropped_image = crop_and_rotate(original_image, rect)
+        cropped_image, rect = crop_and_adjust(original_image, rect)
         
     else : 
-        cropped_image = crop_and_rotate(processed_image, rect)
+        cropped_image, rect = crop_and_adjust(processed_image, rect)
         if format == "hand_or_check":
             format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
-    return format, cropped_image
+    return format, cropped_image, rect
 
 def get_lines(image):
     edges = cv2.Canny(image, 50, 255)
@@ -157,4 +157,4 @@ if __name__ == "__main__":
     for i, image in enumerate(images,1):
         print(f"\nImage {i} is starting")
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, show=True)
+        format, cropped_image, rect = crop_image_and_sort_format(processed_image, original_image=image, show=True)

@@ -31,7 +31,7 @@ def TextExtractionTool_EVALUATE(path, save_path=r"C:\Users\CF6P\Desktop\cv_text\
     for i, image in enumerate(images,1):
         print(f"\n ------------ Image {i} is starting. time : {(time.time() - start_time)} -------------------")
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image)
+        format, cropped_image, rect = crop_image_and_sort_format(processed_image)
         print(f"Image is cropped, format is {format}. time : {(time.time() - start_time)}")
         OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
         print(f"Landmarks are found. time : {(time.time() - start_time)}")
@@ -132,15 +132,15 @@ def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
         image = images[i]
         name = images_names[i]
         processed_image = binarized_image(image)
-        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, def_format=def_format)
-        print(f"Le format de la fiche {name} est :", format)
-        if format == "landscape":
+        format, cropped_image, _ = crop_image_and_sort_format(processed_image, original_image=image, def_format=def_format)
+        if def_format == "landscape":
             landscape_dict_res = ProcessLandscape(cropped_image)
             for dict_name, landscape_dict in landscape_dict_res.items():
                 res_dict_per_image["RESPONSE"][name+"_"+dict_name] = landscape_dict
                 res_image.append(image)
                 res_image_name.append(name+"_"+dict_name)
         else :
+            print(f"Le format de la fiche {name} est :", format)
             res_image.append(image)
             res_image_name.append(name)
             OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
@@ -162,6 +162,6 @@ def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\landscape"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\landscape"
     TextCVTool(path, custom_config=TESSCONFIG, def_format="landscape")
         

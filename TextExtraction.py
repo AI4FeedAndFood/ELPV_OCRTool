@@ -776,16 +776,16 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\test1\scanA.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan5.pdf"
     images = PDF_to_images(path)
     images = images[0:]
     res_dict_per_image = {}
     for i, image in enumerate(images,1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")
         processed_image = binarized_image(image)
-        # plt.imshow(processed_image)
+        format, cropped_image, _ = crop_image_and_sort_format(processed_image, original_image=image, show=False)
+        # plt.imshow(cropped_image)
         # plt.show()
-        format, cropped_image = crop_image_and_sort_format(processed_image, original_image=image, show=False)
         print(f"Image with format : {format} is cropped.")
         OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image)
         print(f"Landmarks are found.")

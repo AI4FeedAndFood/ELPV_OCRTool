@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 import os
 import shutil
+import numpy as np
 import io
 import dicttoxml
 import json
@@ -59,7 +60,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                 conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])
             if conf < conf_threshold or sequence=="":
                 back_color = 'red'
-            else : 
+            else: 
                 back_color = sg.theme_input_background_color()
                 
             if zone == "parasite_recherche":
@@ -85,20 +86,21 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
             elif len(sequence)>=INPUT_LENGTH:
                 lineLayout.append([sg.Text(text, s=(25,1)),
                                 sg.Multiline(sequence, background_color=back_color,
-                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, (len(sequence)//INPUT_LENGTH)+1), justification='center')])
+                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, (len(sequence)//INPUT_LENGTH)+1), justification='left')])
             else :
                 lineLayout.append([sg.Text(text, s=(25,1)),
                                 sg.I(sequence, background_color=back_color,
-                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='center')])
+                                key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='left')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
     
     # Combo for Reference Echantillon
     default_ref = "Tubercule"
     if "ref_echantillon" in list(image_dict.keys()):
         default_ref = image_dict["ref_echantillon"]["sequences"]
-    lineLayout.append([sg.Text("Référence échantillon : ", s=(25,1)),
-                        sg.Combo(["Sol", "Tubercule", "Plant de pomme de terre", "Betterave"], default_value=default_ref,
-                                key=f"-ref_echantillon-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))])
+    line = [sg.Text("Référence échantillon : ", s=(25,1)),
+            sg.Combo(["Sol", "Tubercule", "Plant de pomme de terre", "Betterave"], default_value=default_ref,
+            key=f"-ref_echantillon-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))]
+    lineLayout = lineLayout[:-2] + [line] + lineLayout[-2:] # Ref should be above parasites
     
     return lineLayout
     
@@ -313,11 +315,9 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
             res_copy_dict = deepcopy(clean_dict)
             if n_copy>1:
                 for i_copy in range(n_copy):
-                    clean_dict[f"Sample_{i_copy+1}"] = {}
-                    clean_dict[f"Sample_{i_copy+1}"].update(res_copy_dict["Sample"])
-                    clean_dict[f"Sample_{i_copy+1}"]["CustomerReference"] = res_copy_dict["Sample"]["CustomerReference"] + f"/{i_copy+1}"
-                clean_dict.pop("Sample")
-            res_dict[scan_name] = clean_dict
+                    clean_dict[f"Sample"] = res_copy_dict["Sample"]
+                    clean_dict[f"Sample"]["CustomerReference"] = res_copy_dict["Sample"]["CustomerReference"] + f"/{i_copy+1}"
+                    res_dict[scan_name+f"_{i_copy+1}"] = clean_dict
             # Handle copy
             # verif_tuple = (clean_dict["CustomerCode"], clean_dict["ContractCode"])
             # if verif_tuple in compiled_id:
@@ -360,8 +360,9 @@ def adapt_landscape(images_names_dict, images, images_names):
 def main():
     welcomeLayout = [
         [sg.Text("Dossier contenant les PDFs"), sg.Input(LIMSsettings["TOOL_PATH"]["input_folder"], key="-PATH-"), 
-         sg.FolderBrowse(button_color="cornflower blue"), sg.Checkbox(' Format SEMAE', default=False, key=f"landscape")],
-        [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme", button_color="medium sea green"), sg.Push()]
+         sg.FolderBrowse(button_color="cornflower blue")],
+        [sg.Push(), sg.Exit(button_color="tomato"), sg.Push(), sg.Button("Lancer l'algorithme", button_color="medium sea green"), sg.Checkbox(' Format SEMAE', default=False, key=f"landscape"),
+          sg.Push()]
     ]
     window_title = GUIsettings["GUI"]["title"]
     welcomWindow = sg.Window(window_title, welcomeLayout, use_custom_titlebar=True)
@@ -427,12 +428,13 @@ def main():
                             last_info = ["", ""]
                             while n_image < len(images_names):
                                 if n_image != n_displayed:
-                                    client_warning=None
+                                    client_warning=False
                                     if start == True :
                                         X_loc, Y_loc = VerificationWindow.current_location()
                                         X_dim, Y_dim = fit_the_screen(10)
                                     image_name = images_names[n_image]
                                     image = images[n_image]
+                                    image = np.rot90(image, int(image_name.split("_")[-1])) if values["landscape"] else image
                                     image_dict = res_dict_per_image["RESPONSE"][image_name]
                                     VerificactionLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info)
                                     if start == True :
@@ -457,11 +459,13 @@ def main():
                                     if contractSuggestionW : contractSuggestionW.close()
                                     if ClientSuggestionW : ClientSuggestionW.close()
                                     if (not verif_values["-client_name-"] in CLIENT_LIST or not verif_values["-contract_name-"] in CONTRACT_LIST_0) and not client_warning:
+                                            verif_event=None
                                             sg.popup_ok("ATTENTION : VEUILLEZ REMPLIR UN CODE CIENT ET UN CODE CONTRAT VALIDE", button_color="dark green", 
                                                         location = (X_loc+200, Y_loc+200))
                                             client_warning=True
+                                            copy_status = False
                                     # Check "n_copie" format
-                                    n_copy, copy_status = check_n_copy(verif_values, X_loc, Y_loc)
+                                    else : n_copy, copy_status = check_n_copy(verif_values, X_loc, Y_loc)
 
                                     if copy_status:
                                         # If not last image

@@ -1,7 +1,6 @@
 import numpy as np
 import pytesseract
 import json
-from copy import deepcopy
 from unidecode import unidecode
 import cv2
 import matplotlib.pyplot as plt
@@ -13,7 +12,7 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from ProcessPDF import binarized_image, HoughLines, agglomerate_lines
+from ProcessPDF import binarized_image, HoughLines, get_rectangle, crop_and_adjust
 from TextExtraction import get_candidate_local_OCR, common_mistake_filter, select_text
 
 whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
@@ -34,7 +33,7 @@ class Column:
         Args:
             name (str): path of the template image path
             absolute_position (str): the label corresponding to the template
-            theorical_col (List[int]): the color associated with the label (to plot detections)
+            theorical_col (List[float]): ratio of the horiontal position of the col compared with the image shape
         """
         self.name = name
         self.landmark_boxes = landmark_boxes
@@ -66,8 +65,8 @@ def HSV_image(image):
     return HSV_image
 
 def _postprecess_mask(mask):
-    mask = cv2.erode(mask, None, iterations=5)
-    mask = cv2.dilate(mask, None, iterations=5)
+    mask = cv2.erode(mask, None, iterations=4)
+    mask = cv2.dilate(mask, None, iterations=4)
     return mask
 
 def get_contours(image, conditions_dictionnary):
@@ -76,10 +75,15 @@ def get_contours(image, conditions_dictionnary):
         area_threshold = conditions_dictionnary["area_threshold"]
         res_contours = [x for x in res_contours if cv2.contourArea(x)<area_threshold]
         return res_contours
-    
-    lower_threshold, upper_threshold = np.array(conditions_dictionnary["HSV_lower"]), np.array(conditions_dictionnary["HSV_upper"])
-    mask = cv2.inRange(image, lower_threshold, upper_threshold) # Get the mask by removing pixels out of thresholds
-    mask = _postprecess_mask(mask) # Mask is processed
+
+    # upper mask (110-180)
+    lower_red = np.array([110,50,50])
+    upper_red = np.array([180,255,255])
+    mask1 = cv2.inRange(image, lower_red, upper_red)
+
+    mask = _postprecess_mask(mask1) # Mask is processed
+    # plt.imshow(mask)
+    # plt.show()
     contours,_ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  #Get contours
     if len(contours) == 0:
         print("No dot found")
@@ -93,7 +97,8 @@ def get_bounding_boxes(contours): # Finally get bounding box
     for contour in contours:
         rectangles.append(cv2.boundingRect(contour)) # Carry ((x,y), (width, height), rotation) with xy of the center
         M = cv2.moments(contour)
-        centers.append([int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]) # More like a weighte center, tends to be more in the center of objects
+        if int(M["m00"])!=0:
+            centers.append([int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]) # More like a weighted center, tends to be more in the center of objects
         # TO FIX
     return list(sorted(zip(rectangles, centers), key=lambda x: (round(x[1][1]/100), round(x[1][0]/100)))) # Get boxes from upper left to upper right, the round by 100 is based on 3888*3888 images
 
@@ -115,35 +120,36 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     Returns:
         _type_: _description_
     """
-    
-    Y, X = cropped_image.shape[:2]
+
     # Get dots thanks to HSV filtering
     HSV_im = HSV_image(cropped_image)
     contours, mask  = get_contours(HSV_im, conditions_dict)
-    
     # Binarized then delete dots
-    processed_image = binarized_image(cropped_image)
-    processed_image[mask == 255] = 255
-    
+    cropped_image = binarized_image(cropped_image)
+    cropped_image[mask == 255] = 255
     dots = get_bounding_boxes(contours)
     if dots == []:
         print("PAS DE POINT TROUVE")
-        return [], processed_image
+        return [], cropped_image
     _, centers = zip(*dots)
     centers = list(centers)
     centers = [list(c) for c in centers]
-    
-    # Apply the rotation for imag and dots according to the orientation
+       
+    # Apply the rotation for image and dots according to the orientation
     k_90 = 3
-    if centers[0][1]<abs(centers[0][1]-Y): # Dots indicates if the paper is from top to bottom or bottom to top
+    if centers[0][1]<100: # Dots indicates if the paper is from top to bottom or bottom to top
         k_90 = 1
-    processed_image = np.rot90(processed_image, k=k_90)    
-    M = cv2.getRotationMatrix2D((0,0), -90*k_90, 1) # Rotation matrix
+
+    Yc, Xc = cropped_image.shape[:2]
+
+    # Apply the crop adn rotate to centers
+    # angle = angle if inv else -angle
+    M_after_crop = cv2.getRotationMatrix2D((0,0), -90*k_90, 1) # Rotation matrix for centers       
     for i, dot in enumerate(centers):
-        new_dot = np.matmul(np.array(dot) - np.array([X/2, Y/2]), M) + np.array([Y/2, X/2, 0])
-        centers[i] = [int(new_dot[0]), int(new_dot[1])]
-    centers = [p for p in centers if p[0]<100] # !!! Just in case for now
+        new_dot = np.matmul(np.array(dot)-np.array([Xc/2, Yc/2]), M_after_crop)[:2] + np.array([Yc/2, Xc/2])
+        centers[i] = [max(int(new_dot[0]), 0), int(new_dot[1])]
     centers = sorted(centers, key=lambda x: x[1])
+    final_image = np.rot90(cropped_image, k_90) # Minus for counterclockwise
 
     # bloc1, bloc2 = [], []
     # ref1, ref2 = centers[0][0], centers[-1][0] # Split along x axis
@@ -155,7 +161,7 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     #         bloc2.append(dot)
     # dot_pairs = (bloc1, bloc2)
     
-    return centers, processed_image
+    return centers, final_image, k_90
 
 def extend_lines(lines_list, mode="vertical"):
     """
@@ -212,7 +218,8 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
     Args:
         position (list): Accept [x,y,...] or [(x,y),(...)] ONLY
         lines (list): output of the HoughLines function ; [[(x1,y1),(x2,y2)], ...]
-        mode (str, optional): _description_. Defaults to "vertical".
+        mode (str, optional): The orientation of lines. Defaults to "vertical".
+        var_match (bool, optional): If True, select lines that the var exis cross the position. Defaults to "False".
     """
     (cst, var) = (0,1) if mode == "vertical"  else (1,0) # vertical means the x axis (index 0) is cst
     xy_position = position[0] if type(position[0])==type((0,0)) else position[:2]
@@ -227,15 +234,17 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
         
     return first_line, second_line    
 
-def ProcessLandscape(cropped_image):
+def ProcessLandscape(image):
     # Find dots in the scan and the flip&croped image
-    dots, processed_image =  get_dots_and_final_image(cropped_image, OCR_HELPER["landscape_HSV"])
+    dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
+    Y,X = processed_image.shape[:2]
     if dots == []:
+        print("No dot")
         return {}
     # Find lines in the scan
     vertical_lines = HoughLines(processed_image)
     # Delete lines that are not from the table
-    vertical_lines = [line for line in vertical_lines if max(line[0][1], line[1][1])>cropped_image.shape[1]/2]
+    vertical_lines = [line for line in vertical_lines if max(line[0][1], line[1][1])>2*processed_image.shape[0]/3]
     lines = {
         "vertical" : extend_lines(vertical_lines),
         "horizontal" : HoughLines(processed_image, mode="horizontal")
@@ -256,10 +265,15 @@ def ProcessLandscape(cropped_image):
             f_index = [box[0] for box in landmark_boxes].index("found")
             box = landmark_boxes[f_index][1]
             xy_col = [box[0]+box[2]/4, box[1]+box[3]/4] # Frame the upper left corner  
-            col.left_line, col.right_line = get_frame_lines(xy_col, lines["vertical"])      
-        else :
-            theorical_col = key_points["theorical_col"]
-            col.left_line, col.right_line = lines["vertical"][theorical_col-1], lines["vertical"][theorical_col]
+            vert_frame_lines = get_frame_lines(xy_col, lines["vertical"])
+        else : 
+            vert_frame_lines = [[], []]
+        for i, line in enumerate(vert_frame_lines):
+            if line == []:
+                x_line = int(X*key_points["theorical_col"][i])
+                vert_frame_lines = list(vert_frame_lines)
+                vert_frame_lines[i] = [[x_line, 0],[x_line, Y]]
+            col.left_line, col.right_line = vert_frame_lines
         columns.append(col)
     
     landscape_dict_res = {}
@@ -269,10 +283,9 @@ def ProcessLandscape(cropped_image):
         for col in columns:
             upper_line, lower_line = get_frame_lines(point_position, extend_lines(lines["horizontal"], mode="horizontal"), mode="horizontal")
             left_line, right_line = col.left_line, col.right_line
-            
             if col.dict["merged"]:
                 x_left, x_right = left_line[0][0], right_line[0][0]
-                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.90, 0.75, 0.5, 0.25, 0.1]]
+                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.85, 0.75, 0.62, 0.5, 0.37, 0.25, 0.15]]
                 upper_frame, lower_frame = [], []
                 for position in xy_left_mid_right:
                     upper_merge, lower_merge = get_frame_lines(position, lines["horizontal"], mode="horizontal", var_match=True)
@@ -280,7 +293,6 @@ def ProcessLandscape(cropped_image):
                     lower_frame.append(lower_merge)
                 upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
                 lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
-            
             cell_box = [left_line[0][0], upper_line[0][1], abs(right_line[0][0]-left_line[0][0]), abs(lower_line[0][1]-upper_line[0][1])] # x,y,w,h
             # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
             candidate_OCR_list = get_candidate_local_OCR(processed_image, landmark_boxes=[["found", cell_box, 1]], relative_positions=[[[0,1], [0,1]]], format="landscape", ocr_config=TESSCONFIG)[0]
@@ -295,13 +307,13 @@ def ProcessLandscape(cropped_image):
                 OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
                 
             res_dict_per_zone[col.name] = OCR_and_text_full_dict
-            print(OCR_and_text_full_dict["sequences"])
+            print(col.name, " : ", OCR_and_text_full_dict["sequences"])
         res_dict_per_zone["parasite_recherche"] = {
             "OCR" : {"conf" : [1]},
             "sequences" : [['Rhizomanie']],
             "indexes" : [0]
             }
         
-        landscape_dict_res[f"point_{i_point}"] = res_dict_per_zone
+        landscape_dict_res[f"point_{i_point}_k90_{k_90}"] = res_dict_per_zone
 
     return landscape_dict_res

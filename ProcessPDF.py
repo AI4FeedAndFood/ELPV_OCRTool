@@ -102,7 +102,6 @@ def _rect_table(processed_image, rectangles, format=""):
         xy = (wh[0]//2 + UX_LX_UY_LY[0], wh[1]//2 + UX_LX_UY_LY[2])
         
         if format == "landscape":
-            rot = -rot
             wh = (UX_LX_UY_LY[1]-UX_LX_UY_LY[0]+10, y)
         
         # im = processed_image.copy()
@@ -150,7 +149,7 @@ def get_rectangle(processed_image, kernel_size=(3,3), def_format=""):
     for rect in rectangles:
         if 45<rect[-1]:
                 rect[1] = (rect[1][1], rect[1][0])
-                rect[-1] = 90-rect[-1]
+                rect[-1] = rect[-1]-90
         overlap_found = False
         for f_rect in filtered_rects:
             coord1 = coord(rect)
@@ -161,7 +160,7 @@ def get_rectangle(processed_image, kernel_size=(3,3), def_format=""):
                 break
         if not overlap_found:
             filtered_rects.append(rect)
-            
+        
     if def_format == "landscape":
         format = "landscape"
         return def_format, _rect_table(processed_image, filtered_rects, format=format)
@@ -171,7 +170,7 @@ def get_rectangle(processed_image, kernel_size=(3,3), def_format=""):
     else:
         return "table", _rect_table(processed_image, filtered_rects)
 
-def crop_and_rotate(processed_image, rect):
+def crop_and_adjust(processed_image, rect):
     """Crop the blank part around the found rectangle.
 
     Args:
@@ -197,16 +196,16 @@ def crop_and_rotate(processed_image, rect):
     box = np.intp(cv2.boxPoints(rect))    
     # Rotate image
     angle = rect[2]
-    if 45<=angle<=90 : # Angle correction
-        angle = angle-90 
     rows, cols = processed_image.shape[:2]
     M = cv2.getRotationMatrix2D((cols/2,rows/2), angle, 1) # Rotation matrix
     img_rot = cv2.warpAffine(processed_image,M,(cols,rows))
+    # plt.imshow(img_rot)
+    # plt.show()
     # rotate bounding box, then crop
     rect_points = np.intp(cv2.transform(np.array([box]), M))[0] # points of the box after rotation
     y0, y1, x0, x1 = _points_filter(rect_points) # get corners
     cropped_image = img_rot[y0:y1, x0:x1]
-    return cropped_image
+    return cropped_image, [y0, y1, x0, x1, angle]
 
 def delete_lines(bin_image): # Unused function wich delete (approximatly) lines on an image
     
@@ -247,7 +246,7 @@ def HoughLines(bin_image, mode="vertical"):
         # Extracted points nested in the list
         x1,y1,x2,y2=points[0]
         line  = [(x1,y1),(x2,y2)]
-        if abs(line[0][cst]-line[1][cst])<20:
+        if abs(line[0][cst]-line[1][cst])<40:
             lines_list.append(line)
     return lines_list 
 
@@ -287,15 +286,15 @@ def get_preprocessed_image(image):
         _type_: The preprocessed image
     """
     bin_image = binarized_image(image)
-    cropped_image = crop_and_rotate(bin_image)
+    cropped_image, _ = crop_and_adjust(bin_image)
     return cropped_image
 
 if __name__ == "__main__":
 
-    print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf"
-    images = PDF_to_images(path)
-    images = images[0:]
-    for im in images:
-        processed_image = binarized_image(im)
-        get_rectangle(processed_image)
+    print("No")
+    # path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan5.pdf"
+    # images = PDF_to_images(path)
+    # images = images[0:]
+    # for im in images:
+    #     processed_image = binarized_image(im)
+    #     get_rectangle(processed_image)

@@ -20,7 +20,7 @@
     "landscape_HSV" : {
         "HSV_lower" : [110,25,20],
         "HSV_upper" :  [150,255,255],
-        "area_threshold" : 2000
+        "area_threshold" : 20000
     },
 
     "lists": {
@@ -221,35 +221,35 @@
             "subregion" : [[0.35, 1], [0, 0.1]],
             "key_sentences" : [["echantillon"]],
             "merged" : 0,
-            "theorical_col" : 1,
+            "theorical_col" : [0,0.1],
             "conditions" : [["cell"]]           
         },
         "nom" : {
             "subregion" : [[0.35, 1], [0.08, 0.25]],
             "key_sentences" : [["N° identification", "du"], ["producteur", "de", "la", "culture"]],
             "merged" : 1,
-            "theorical_col" : 2,
+            "theorical_col" : [0.1, 0.25],
             "conditions" : [["cell"]] 
         },
         "date_de_prelevement" : {
             "subregion" : [[0.35, 1], [0.2, 0.35]],
             "key_sentences" : [["Date"], ["prelevement"]],
             "merged" : 0,
-            "theorical_col" : 3,
+            "theorical_col" : [0.25, 0.33],
             "conditions" : [["date"]]
         },
         "variete" : {
             "subregion" : [[0.35, 1], [0.55, 0.7]],
             "key_sentences" : [["Variete"]],
             "merged" : 1,
-            "theorical_col" : 6,
+            "theorical_col" : [0.56, 0.67],
             "conditions" : [["list", "variete", "single"]]
         },
         "localisation_prelevement" : {
             "subregion" : [[0.35, 1], [0.6,0.85]],
             "key_sentences" : [["Lieu", "du", "prelevement"]],
             "merged" : 1,
-            "theorical_col" : 7,
+            "theorical_col" : [ 0.67, 0.77],
             "conditions" : [["cell"]] 
         }
     }
