@@ -5,6 +5,7 @@ from copy import deepcopy
 from unidecode import unidecode
 import cv2
 import matplotlib.pyplot as plt
+import pandas as pd
 
 import locale
 locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
@@ -21,6 +22,8 @@ LANG = 'eng+eng2'
 TESSCONFIG = [1, 6, whitelist, LANG]
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
+
+lists_df = pd.read_excel(r"CONFIG\\lists.xlsx")
 
 def _text_filter(text):
     for i, word in enumerate(text):
@@ -469,7 +472,7 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
                 for candidate_sequence, candidate_index in zipped_seq:
                     concat_seq+=candidate_sequence
                     concat_index+= candidate_index
-                check_list = OCR_HELPER["lists"][condition[1]]
+                check_list = list(lists_df[condition[1]].dropna())
                 for check_elmt in check_list:
                     check_indexes=[]
                     jaro_elmt=[]
@@ -776,7 +779,7 @@ def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPE
 if __name__ == "__main__":
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan5.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan1.pdf"
     images = PDF_to_images(path)
     images = images[0:]
     res_dict_per_image = {}

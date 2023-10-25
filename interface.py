@@ -48,7 +48,6 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
     conversion_dict = LIMSsettings["CLEAN_ZONE"]
     conf_threshold = int(GUIsettings["TOOL"]["confidence_threshold"])    
     lineLayout = []
-    
     # Returned the tool's response for each field
     for zone, landmark_text_dict in image_dict.items():
         if not zone in ["client_name", "contract_name", "n_copy", "ref_echantillon"]:
@@ -92,9 +91,8 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                                 sg.I(sequence, background_color=back_color,
                                 key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='left')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
-    
     # Combo for Reference Echantillon
-    default_ref = "Tubercule"
+    default_ref = "Tubercule" if image_dict["variete"]["sequences"] != [] else "Sol"
     if "ref_echantillon" in list(image_dict.keys()):
         default_ref = image_dict["ref_echantillon"]["sequences"]
     line = [sg.Text("Référence échantillon : ", s=(25,1)),
@@ -343,7 +341,7 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
             with open(os.path.join(new_xml, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
                 result_file.write(xml.decode())
 
-def adapt_landscape(images_names_dict, images, images_names):
+def get_images_and_adapt_landscape(images_names_dict, images, images_names):
     res_images, res_names = [], []
     for i, name in enumerate(images_names):
         loc_im = [images[i]]
@@ -392,7 +390,7 @@ def main():
                         json_file  = open(save_path_json, encoding='utf-8')
                         res_dict_per_image = json.load(json_file)
                         images_names_dict = list(res_dict_per_image["RESPONSE"].keys())
-                        images, images_names =  adapt_landscape(images_names_dict, images, images_names)
+                        images, images_names =  get_images_and_adapt_landscape(images_names_dict, images, images_names)
                         welcomWindow.close()
                         start = True
                         if images_names_dict != images_names:
@@ -513,7 +511,8 @@ if __name__ == "__main__":
     LIMSsettings = json.load(open(r"CONFIG\LIMS_config.json"))
     INPUT_LENGTH = 45
 
-    PARASITES_LIST = OCR_HELPER["lists"]["parasite"]
+    lists_df = pd.read_excel(r"CONFIG\\lists.xlsx")
+    PARASITES_LIST = list(lists_df["parasite"].dropna())
 
     LIMSCodeXlsxPath = os.path.join(r"CONFIG\client_contract.xlsx")
     CLIENT_CONTRACT_DF = pd.read_excel(LIMSCodeXlsxPath, dtype=str).fillna("")
