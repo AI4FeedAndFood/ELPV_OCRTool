@@ -162,6 +162,6 @@ def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\landscape"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\debug"
     TextCVTool(path, custom_config=TESSCONFIG, def_format="landscape")
         

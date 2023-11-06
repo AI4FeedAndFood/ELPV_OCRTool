@@ -130,24 +130,25 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     dots = get_bounding_boxes(contours)
     if dots == []:
         print("PAS DE POINT TROUVE")
-        return [], cropped_image
+        return [], cropped_image, 1
     _, centers = zip(*dots)
     centers = list(centers)
     centers = [list(c) for c in centers]
        
     # Apply the rotation for image and dots according to the orientation
+    Yc, Xc = cropped_image.shape[:2]
     k_90 = 3
     if centers[0][1]<100: # Dots indicates if the paper is from top to bottom or bottom to top
         k_90 = 1
+    elif Yc<Xc:
+        k_90=0
 
-    Yc, Xc = cropped_image.shape[:2]
-
-    # Apply the crop adn rotate to centers
+    # Apply the crop and rotate to centers
     # angle = angle if inv else -angle
     M_after_crop = cv2.getRotationMatrix2D((0,0), -90*k_90, 1) # Rotation matrix for centers       
     for i, dot in enumerate(centers):
         new_dot = np.matmul(np.array(dot)-np.array([Xc/2, Yc/2]), M_after_crop)[:2] + np.array([Yc/2, Xc/2])
-        centers[i] = [max(int(new_dot[0]), 0), int(new_dot[1])]
+        centers[i] = [max(int(new_dot[0]), 0), int(new_dot[1])] if k_90!=0 else centers[i]
     centers = sorted(centers, key=lambda x: x[1])
     final_image = np.rot90(cropped_image, k_90) # Minus for counterclockwise
 
