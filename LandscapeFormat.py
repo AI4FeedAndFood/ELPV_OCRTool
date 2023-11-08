@@ -1,7 +1,6 @@
 import numpy as np
 import pytesseract
 import json
-from unidecode import unidecode
 import cv2
 import matplotlib.pyplot as plt
 from TextExtraction import get_data_and_landmarks, get_candidate_local_OCR, condition_filter
@@ -12,7 +11,7 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from ProcessPDF import binarized_image, HoughLines, get_rectangle, crop_and_adjust
+from ProcessPDF import binarized_image, HoughLines
 from TextExtraction import get_candidate_local_OCR, common_mistake_filter, select_text
 
 whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"

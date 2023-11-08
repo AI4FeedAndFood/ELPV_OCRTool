@@ -310,20 +310,18 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
         for scan_name, scan_dict in verified_dict.items():
             n_copy = int(scan_dict["n_copy"])
             clean_dict = convertDictToLIMS(scan_dict, CLIENT_CONTRACT_DF)
-            res_copy_dict = deepcopy(clean_dict)
             if n_copy>1:
+                customer_reference = clean_dict["Sample"]["CustomerReference"]
+                sample_dict = clean_dict.pop("Sample")
                 for i_copy in range(n_copy):
-                    clean_dict[f"Sample"] = res_copy_dict["Sample"]
-                    clean_dict[f"Sample"]["CustomerReference"] = res_copy_dict["Sample"]["CustomerReference"] + f"/{i_copy+1}"
-                    res_dict[scan_name+f"_{i_copy+1}"] = clean_dict
-            # Handle copy
-            # verif_tuple = (clean_dict["CustomerCode"], clean_dict["ContractCode"])
-            # if verif_tuple in compiled_id:
-            #     # Compile (rename, add, handle copy and number of sample in global)
-            #     pass
-            # else:
-            #     # add
-            #     pass
+                    # clean_dict[f"Sample_{i_copy+1}"] = deepcopy(sample_dict)
+                    # clean_dict[f"Sample_{i_copy+1}"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
+
+                    clean_dict["Sample"] = deepcopy(sample_dict)
+                    clean_dict["Sample"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
+                    res_dict[scan_name+f"_{i_copy+1}"] = deepcopy(clean_dict)
+            else: res_dict[scan_name] = deepcopy(clean_dict)
+            # res_dict[scan_name] = clean_dict
 
         return res_dict
     
