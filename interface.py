@@ -34,7 +34,6 @@ def use_the_tool(folderPath, def_format="default"):
     return images_names, res_dict_per_image, images
 
 def checkboxs_for_parasite(parasite_list, found_parasites):
-    found_parasites = [para[0] for para in found_parasites]
     not_found = [para for para in parasite_list if para not in found_parasites]
     found_col = []
     not_found_col = []
@@ -46,17 +45,15 @@ def checkboxs_for_parasite(parasite_list, found_parasites):
 
 def _getFieldsLayout(image_dict, X_dim, Y_dim):
     conversion_dict = LIMSsettings["CLEAN_ZONE"]
-    conf_threshold = int(GUIsettings["TOOL"]["confidence_threshold"])    
+    conf_threshold = int(GUIsettings["TOOL"]["confidence_threshold"])/100   
     lineLayout = []
     # Returned the tool's response for each field
     for zone, landmark_text_dict in image_dict.items():
         if not zone in ["client_name", "contract_name", "n_copy", "ref_echantillon"]:
             clean_zone_name = conversion_dict[zone]
             text = f"{clean_zone_name} : "
-            sequence = landmark_text_dict["sequences"]
-            conf= 100 # If empty must not be red
-            if landmark_text_dict["indexes"] != []:
-                conf = min([landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]])
+            sequence = landmark_text_dict["sequence"]
+            conf= landmark_text_dict["confidence"] # If empty must not be red
             if conf < conf_threshold or sequence=="":
                 back_color = 'red'
             else: 
@@ -92,9 +89,9 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                                 key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='left')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
     # Combo for Reference Echantillon
-    default_ref = "Tubercule" if image_dict["variete"]["sequences"] != [] else "Sol"
+    default_ref = "Tubercule" if image_dict["variete"]["sequence"] != [] else "Sol"
     if "ref_echantillon" in list(image_dict.keys()):
-        default_ref = image_dict["ref_echantillon"]["sequences"]
+        default_ref = image_dict["ref_echantillon"]["sequence"]
     line = [sg.Text("Référence échantillon : ", s=(25,1)),
             sg.Combo(["Sol", "Tubercule", "Plant de pomme de terre", "Betterave"], default_value=default_ref,
             key=f"-ref_echantillon-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))]
@@ -104,7 +101,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
     
 def _getImageLayout(image):
     
-    searching_area = Image.fromarray(image).resize((int(image.shape[1]*0.58), int(image.shape[0]*0.58)))
+    searching_area = Image.fromarray(image).resize((int(image.shape[1]*0.4), int(image.shape[0]*0.4)))
     bio = io.BytesIO()
     searching_area.save(bio, format="PNG")
     imageLayout = [[sg.Image(data=bio.getvalue(), key=f'scan')]]
@@ -117,9 +114,9 @@ def _getClientContractLayout(image_dict, last_info):
     
     client, contract = "", ""
     if "client_name" in list(image_dict.keys()):
-        client = image_dict["client_name"]["sequences"]
+        client = image_dict["client_name"]["sequence"]
     if "contract_name" in list(image_dict.keys()):
-        contract = image_dict["contract_name"]["sequences"]
+        contract = image_dict["contract_name"]["sequence"]
     
     if not client:
         client = last_info[0]
@@ -249,9 +246,8 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
                 test_code_list.append(p_code)
                 unit_in_package += p_para
                 unit_code_list = list(set(unit_code_list) - set(unit_in_package))
-        test_code_list += unit_code_list # Add non-packed unit test
-        
-        return test_code_list
+
+        return test_code_list, unit_code_list
     
     # Clean fields
     scan_clean_dict = {}
@@ -262,7 +258,7 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
         if key[0] == "-":
             scan_clean_dict[key] = value
     scan_clean_dict["-parasite_recherche-"] = para
-    scan_clean_dict["-parasite_package-"] =_get_parasite_code(para)
+    scan_clean_dict["-parasite_package-"], scan_clean_dict["-parasite_test-"] =_get_parasite_code(para)
         
     # Convert client and contract for the LIMS
     stack_dict = {}
@@ -293,12 +289,12 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
 
 def runningSave(save_path_json, verified_imageDict, image_name, res_dict, n_copy):
     res_dict["RESPONSE"][image_name].update({"n_copy" : n_copy})
-    res_dict["RESPONSE"][image_name].update({"ref_echantillon" : {"sequences" : "" }})
-    res_dict["RESPONSE"][image_name].update({"client_name" : {"sequences" : "" }})
-    res_dict["RESPONSE"][image_name].update({"contract_name" : {"sequences" : "" }})
+    res_dict["RESPONSE"][image_name].update({"ref_echantillon" : {"sequence" : "" }})
+    res_dict["RESPONSE"][image_name].update({"client_name" : {"sequence" : "" }})
+    res_dict["RESPONSE"][image_name].update({"contract_name" : {"sequence" : "" }})
     for key, items in verified_imageDict.items():
         if key[0] == "-":
-            res_dict["RESPONSE"][image_name][key.strip("-")]["sequences"] = items
+            res_dict["RESPONSE"][image_name][key.strip("-")]["sequence"] = items
 
     with open(save_path_json, 'w', encoding='utf-8') as f:
         json.dump(res_dict, f,  ensure_ascii=False)
@@ -402,6 +398,7 @@ def main():
                         images_names, res_dict_per_image, images = use_the_tool(givenPath, def_format=def_format)
                         print("------ DONE -----")
                         with open(save_path_json, 'w', encoding='utf-8') as json_file:
+                            print(res_dict_per_image)
                             json.dump(res_dict_per_image, json_file,  ensure_ascii=False) # Save the extraction json on RES
                         if os.path.exists(xml_res_path): # Create or overwrite the verified_XML folder in RES
                             shutil.rmtree(xml_res_path)

@@ -1,11 +1,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
+import json
 
-from ProcessPDF import get_rectangle, crop_and_adjust, binarized_image, get_iou
+OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
+CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["checkbox"]
 
-empty_checkbox_path = r"reference_images\empty_checkbox.png" 
-cross_checkbox_path = r"reference_images\cross_checkbox.png"
+empty_checkbox_path = CONFIG_DICT["check"]["type_lot"]["empty_path"]
+cross_checkbox_path = CONFIG_DICT["check"]["type_lot"]["cross_path"]
+table_checkbox_path = CONFIG_DICT["table"]["parasite_recherche"]["cross_path"]
 
 def preprocessed_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -38,11 +41,11 @@ class Template:
     def transform(cls, template, transform):
         return [trans(template) for trans in transform]
 
-TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
-             lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))] # Maybe can be cleaner with a transform class
-TEMPLATES = [Template(image_path=empty_checkbox_path, label="empty", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM),
-             Template(image_path=cross_checkbox_path, label="cross", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM)]
+TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: cv2.resize(x, (int(x.shape[1]*1.15), x.shape[0])),
+             lambda x: cv2.resize(x, (x.shape[1], int(x.shape[0]*1.15)))] # Maybe can be cleaner with a transform class
 
+CHECK_TEMPLATES = [Template(image_path=cross_checkbox_path, label="cross", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM),
+              Template(image_path=empty_checkbox_path, label="empty", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM)]
 
 def checkbox_match(templates, cropped_image):
     detections = []
@@ -64,6 +67,45 @@ def checkbox_match(templates, cropped_image):
                 }
                 detections.append(match)
     return detections
+
+def get_iou(a, b, epsilon=1e-5):
+    """ Given two boxes `a` and `b` defined as a list of four numbers:
+            [x1,y1,x2,y2]
+        where:
+            x1,y1 represent the upper left corner
+            x2,y2 represent the lower right corner
+        It returns the Intersect of Union score for these two boxes.
+
+    Args:
+        a:          (list of 4 numbers) [x1,y1,x2,y2]
+        b:          (list of 4 numbers) [x1,y1,x2,y2]
+        epsilon:    (float) Small value to prevent division by zero
+
+    Returns:
+        (float) The Intersect of Union score.
+    """
+    # COORDINATES OF THE INTERSECTION BOX
+    x1 = max(a[0], b[0])
+    y1 = max(a[1], b[1])
+    x2 = min(a[2], b[2])
+    y2 = min(a[3], b[3])
+
+    # AREA OF OVERLAP - Area where the boxes intersect
+    width = (x2 - x1)
+    height = (y2 - y1)
+    # handle case where there is NO overlap
+    if (width<0) or (height <0):
+        return 0.0
+    area_overlap = width * height
+
+    # COMBINED AREA
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    area_combined = area_a + area_b - area_overlap
+
+    # RATIO OF AREA OF OVERLAP OVER COMBINED AREA
+    iou = area_overlap / (area_combined+epsilon)
+    return iou
 
 def non_max_suppression(objects, non_max_suppression_threshold=0.2, score_key="MATCH_VALUE"):
     """
@@ -107,50 +149,20 @@ def visualize(cropped_image, filtered_objects):
             detection["COLOR"],2)
     plt.imshow(image_with_detections, cmap='gray')
     plt.show(block=True)
-   
-def crop_image_and_sort_format(processed_image, original_image=None, show=False, def_format=""):
-    format, rect = get_rectangle(processed_image, def_format=def_format)
-    if format == "landscape":
-        cropped_image, rect = crop_and_adjust(original_image, rect)
-        
-    else : 
-        cropped_image, rect = crop_and_adjust(processed_image, rect)
-        if format == "hand_or_check":
-            format = get_format_or_checkboxes(cropped_image, mode="get_format", show=show)
-    return format, cropped_image, rect
 
-def get_lines(image):
-    edges = cv2.Canny(image, 50, 255)
-    lines = cv2.HoughLinesP(edges,1,np.pi/180,150,minLineLength=100,maxLineGap=20)
-    image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-    for line in lines:
-        x1,y1,x2,y2 = line[0]
-        cv2.line(image,(x1,y1),(x2,y2),(255,0,0),3)
-    return lines
-    
-def get_format_or_checkboxes(cropped_image, mode="get_format", TEMPLATES=TEMPLATES, show=False):
-    y_im, x_im = cropped_image.shape[:2]
+def get_checkboxes(cropped_image, TEMPLATES=CHECK_TEMPLATES, show=False):
+
     detections = checkbox_match(TEMPLATES, cropped_image)
     filtered_detection = non_max_suppression(detections)
     if show : 
         visualize(cropped_image, filtered_detection)
-    if mode == "get_boxes":
-        return filtered_detection
-    if mode == "get_format": 
-        count = 0
-        for checkbox in filtered_detection:
-            x,y = checkbox["TOP_LEFT_X"], checkbox["TOP_LEFT_Y"] # Filter by the position of found boxes
-            if x<x_im/2 and y_im*(1/4)<y<y_im*(3/4):
-                count+=1
-        if count>5: # Threshold choosen arbitrary
-            return "check"
-        else:
-            return "hand"
+    
+    return filtered_detection
 
 if __name__ == "__main__":
     from ProcessPDF import PDF_to_images, binarized_image
     print("start")
-    path = r"C:\Users\CF6P\Desktop\cv_text\Data\scan8.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan5.pdf"
     images = PDF_to_images(path)
     images = images[0:]
     res_dict_per_image = {}
@@ -158,3 +170,4 @@ if __name__ == "__main__":
         print(f"\nImage {i} is starting")
         processed_image = binarized_image(image)
         format, cropped_image, rect = crop_image_and_sort_format(processed_image, original_image=image, show=True)
+        # plt.imsave("t.png", cropped_image, cmap="gray")

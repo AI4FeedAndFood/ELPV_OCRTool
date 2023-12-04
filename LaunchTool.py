@@ -15,69 +15,9 @@ whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:
 LANG = 'eng+eng2'
 TESSCONFIG = [1, 6, whitelist, LANG]
 
-from ProcessCheckboxes import crop_image_and_sort_format
-from ProcessPDF import PDF_to_images, binarized_image
-from TextExtraction import get_data_and_landmarks, get_wanted_text
+from ProcessPDF import PDF_to_images, binarized_image, get_rectangles, get_format_and_adjusted_image
+from TextExtraction import textExtraction
 from LandscapeFormat import ProcessLandscape
-
-
-def TextExtractionTool_EVALUATE(path, save_path=r"C:\Users\CF6P\Desktop\cv_text\Evaluate", custom_config=TESSCONFIG):
-    start_time = time.time()
-    images = PDF_to_images(path)
-    res_dict_per_image = {}
-    res_dict_per_image["TESSERACT"] = TESSCONFIG
-    res_dict_per_image["RESPONSE"] = {}
-    
-    for i, image in enumerate(images,1):
-        print(f"\n ------------ Image {i} is starting. time : {(time.time() - start_time)} -------------------")
-        processed_image = binarized_image(image)
-        format, cropped_image, rect = crop_image_and_sort_format(processed_image)
-        print(f"Image is cropped, format is {format}. time : {(time.time() - start_time)}")
-        OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
-        print(f"Landmarks are found. time : {(time.time() - start_time)}")
-        OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-        # Backup in case format is badly assigate
-        non_empty_field = 0
-        for _, value_dict in OCR_and_text_full_dict.items():
-            if value_dict["sequences"] != []:
-                non_empty_field+=1
-                
-        if format == "table" and non_empty_field < 2:
-            format = "hand"
-            OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
-            OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-            
-        res_dict_per_image["RESPONSE"][str(f"{i}")] = OCR_and_text_full_dict
-        print(f"Job is done for this image. time : {(time.time() - start_time)}")
-        save_image_EVALUATE(OCR_and_text_full_dict, cropped_image, path, i, save_path = save_path)
-        print(f"Saved. time  : {(time.time() - start_time)}")
-    # with open(os.path.join(save_path,"sample.json"), "w") as outfile:
-    #     outfile.write(json.dumps(res_dict_per_image))
-    return res_dict_per_image
-
-def save_image_EVALUATE(landmark_text_dict, cropped_image, path, i, save_path):
-    _, name = os.path.split(path)
-    name, _ = os.path.splitext(name)
-    save_path = os.path.join(save_path, f"{name}_{i}.jpg")
-    
-    fig, axs = plt.subplots(6, 2, figsize=(30,30))
-    a, b = 0, 0
-    for i, (zone, dict) in enumerate(landmark_text_dict.items()):
-        text = dict["sequences"]
-        y_min, y_max, x_min, x_max = np.array(dict["box"])
-        axs[a, b].imshow(cropped_image[y_min:y_max, x_min:x_max])
-        if zone == "parasite_recherche":
-            t1, t2, t3 = text[:int(len(text)/3)], text[int(len(text)/3):int(2*len(text)/3):], text[int(2*len(text)/3):]
-            axs[a, b].set_title(f'{zone} : \n {t1} \n {t2} \n {t3}', size = 30)
-        else :
-            axs[a, b].set_title(f'{zone} : \n {text}', size = 30)
-        a+=1
-        if i == 3 : 
-            a=0
-            b=1
-    plt.plot()
-    fig.savefig(save_path)
-    plt.close()
 
 def getAllImages(path):
     def _get_all_images(path, extList=[".tiff", ".tif", ".png"]):
@@ -113,7 +53,7 @@ def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
         result_file.write(xml.decode())
     plt.imsave(save_im_path, cropped_image)
     
-def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
+def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
     """The final tool to use with the GUI
 
     Args:
@@ -124,44 +64,40 @@ def TextCVTool(path, custom_config=TESSCONFIG, def_format="default"):
     images, images_names = getAllImages(path)
     res_image, res_image_name = [], []
     res_dict_per_image = {}
-    res_dict_per_image["TESSERACT"] = TESSCONFIG
+    res_dict_per_image["CONFIG"] = config
     res_dict_per_image["RESPONSE"] = {}
 
     for i in tqdm(range(len(images))):
         print(" Start at : ", datetime.now().strftime("%H:%M:%S"))
         image = images[i]
         name = images_names[i]
-        processed_image = binarized_image(image)
-        format, cropped_image, _ = crop_image_and_sort_format(processed_image, original_image=image, def_format=def_format)
-        if def_format == "landscape":
+        bin_image = binarized_image(image)
+        rectangles = get_rectangles(bin_image)
+        format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, image, input_format=def_format)
+
+        # print(format)
+        # plt.imshow(cropped_image)
+        # plt.show()
+
+        if format == "landscape":
             landscape_dict_res = ProcessLandscape(cropped_image)
             for dict_name, landscape_dict in landscape_dict_res.items():
                 res_dict_per_image["RESPONSE"][name+"_"+dict_name] = landscape_dict
                 res_image.append(image)
                 res_image_name.append(name+"_"+dict_name)
-        else :
+        
+        else:
             print(f"Le format de la fiche {name} est :", format)
             res_image.append(image)
             res_image_name.append(name)
-            OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
-            OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-            
-            # Backup in case format is wrongly assigate
-            non_empty_field = 0
-            for _, value_dict in OCR_and_text_full_dict.items():
-                if value_dict["sequences"] != []:
-                    non_empty_field+=1
-            if format == "table" and non_empty_field < 2: 
-                format = "hand"
-                OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image, ocr_config=custom_config)
-                OCR_and_text_full_dict = get_wanted_text(cropped_image, landmarks_dict, format, ocr_config=custom_config)
-            res_dict_per_image["RESPONSE"][name] = OCR_and_text_full_dict
-            
+            zone_matches = textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER)
+
+            res_dict_per_image["RESPONSE"][name] = zone_matches
+
     return res_image_name, res_dict_per_image, res_image
 
 if __name__ == "__main__":
     
     print("start")
     path = r"C:\Users\CF6P\Desktop\ELPV\Data\debug"
-    TextCVTool(path, custom_config=TESSCONFIG, def_format="landscape")
-        
+    TextCVTool(path)

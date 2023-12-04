@@ -1,9 +1,7 @@
 import numpy as np
-import pytesseract
 import json
 import cv2
 import matplotlib.pyplot as plt
-from TextExtraction import get_data_and_landmarks, get_candidate_local_OCR, condition_filter
 
 
 import locale
@@ -11,13 +9,10 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
+from TextExtraction import get_key_matches_and_OCR, get_wanted_text, ZoneMatch, condition_filter
 from ProcessPDF import binarized_image, HoughLines
-from TextExtraction import get_candidate_local_OCR, common_mistake_filter, select_text
 
-whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
-pytesseract.pytesseract.tesseract_cmd = r'exterior_program\Tesseract4-OCR\tesseract.exe'
-LANG = 'eng+eng2'
-TESSCONFIG = [1, 6, whitelist, LANG]
+
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
 
@@ -27,7 +22,7 @@ class Column:
     """
     A class defining a template
     """
-    def __init__(self, name, landmark_boxes, dict):
+    def __init__(self, name, landmark_box, dict):
         """
         Args:
             name (str): path of the template image path
@@ -35,7 +30,7 @@ class Column:
             theorical_col (List[float]): ratio of the horiontal position of the col compared with the image shape
         """
         self.name = name
-        self.landmark_boxes = landmark_boxes
+        self.landmark_boxes = landmark_box
         self.dict = dict
         self.status = "default"
         self.left_line = None
@@ -122,6 +117,7 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
 
     # Get dots thanks to HSV filtering
     HSV_im = HSV_image(cropped_image)
+
     contours, mask  = get_contours(HSV_im, conditions_dict)
     # Binarized then delete dots
     cropped_image = binarized_image(cropped_image)
@@ -137,7 +133,7 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     # Apply the rotation for image and dots according to the orientation
     Yc, Xc = cropped_image.shape[:2]
     k_90 = 3
-    if centers[0][1]<100: # Dots indicates if the paper is from top to bottom or bottom to top
+    if centers[0][1]<Yc/2: # Dots indicates if the paper is from top to bottom or bottom to top
         k_90 = 1
     elif Yc<Xc:
         k_90=0
@@ -234,6 +230,21 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
         
     return first_line, second_line    
 
+def text_cell(full_OCR, cell_box, column):
+    x,y,w,h = cell_box
+    xmin,ymin,xmax,ymax = x, y, x+w, y+h
+    candidate_dicts = [dict_sequence for dict_sequence in full_OCR if 
+                      (xmin<(dict_sequence["box"][0]+dict_sequence["box"][2])/2<xmax) and (ymin<(dict_sequence["box"][1]+dict_sequence["box"][3])/2<ymax)]
+    match_indices, res_seq = condition_filter(candidate_dicts, column.dict["conditions"])
+    conf = min([candidate_dicts[i]["proba"] for i in match_indices]) if match_indices else 0
+    zone_match = ZoneMatch(candidate_dicts, match_indices, conf, res_seq)
+
+    if column.name != "parasite_recherche":
+        zone_match.res_seq = " ".join(zone_match.res_seq).upper().lstrip(" ._-!*:-")
+    if zone_match.res_seq == "PAYS BAS":
+        zone_match.res_seq = "PAYS-BAS"
+    return zone_match
+    
 def ProcessLandscape(image):
     # Find dots in the scan and the flip&croped image
     dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
@@ -253,18 +264,17 @@ def ProcessLandscape(image):
     processed_image = delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"])
     # delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"], show=True)
     # Find columns header
-    _, landmarks_dict = get_data_and_landmarks(format, processed_image)
+    zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, processed_image)
     # Get columns frame vertical lines
     columns = []
     for zone, key_points in OCR_HELPER[format].items():
-        landmark_boxes =  landmarks_dict[zone]["landmark"]
-        col = Column(name=zone, landmark_boxes=landmark_boxes, dict=key_points)
+        match_zone = zone_key_match_dict[zone]
+        landmark_box =  match_zone.OCR["box"]
+        col = Column(name=zone, landmark_box=landmark_box, dict=key_points)
         
-        if "found" in [box[0] for box in landmark_boxes]:
+        if match_zone.confidence>-1:
             col.status = "found"
-            f_index = [box[0] for box in landmark_boxes].index("found")
-            box = landmark_boxes[f_index][1]
-            xy_col = [box[0]+box[2]/4, box[1]+box[3]/4] # Frame the upper left corner  
+            xy_col = [landmark_box[0], landmark_box[1]] # Frame the upper left corner  
             vert_frame_lines = get_frame_lines(xy_col, lines["vertical"])
         else : 
             vert_frame_lines = [[], []]
@@ -293,25 +303,25 @@ def ProcessLandscape(image):
                     lower_frame.append(lower_merge)
                 upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
                 lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
-            cell_box = [left_line[0][0], upper_line[0][1], abs(right_line[0][0]-left_line[0][0]), abs(lower_line[0][1]-upper_line[0][1])] # x,y,w,h
-            # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
-            candidate_OCR_list = get_candidate_local_OCR(processed_image, landmark_boxes=[["found", cell_box, 1]], relative_positions=[[[0,1], [0,1]]], format="landscape", ocr_config=TESSCONFIG)[0]
-            candidate_OCR_list_filtered = condition_filter([candidate_OCR_list], col.dict["key_sentences"], col.dict["conditions"])
-            clean_OCRs_and_candidates = common_mistake_filter(candidate_OCR_list_filtered, col.name)
-            OCR_and_text_full_dict = select_text(clean_OCRs_and_candidates, col.name)
+            cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,w,h
             
-            if OCR_and_text_full_dict["indexes"] != [] :
-                if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
-                    OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-            if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
-                OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
-                
-            res_dict_per_zone[col.name] = OCR_and_text_full_dict
-            print(col.name, " : ", OCR_and_text_full_dict["sequences"])
-        res_dict_per_zone["parasite_recherche"] = {
-            "OCR" : {"conf" : [1]},
-            "sequences" : [['Rhizomanie']],
-            "indexes" : [0]
+            # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
+            zone_match = text_cell(full_img_OCR, cell_box, column=col)
+
+            res_dict_per_zone[col.name] = {
+                "sequence" : zone_match.res_seq,
+                "confidence" : float(zone_match.confidence),
+                "area" : cell_box,
+                "format" : format
+            }
+
+            print(col.name, " : ", zone_match.res_seq)
+
+        res_dict_per_zone["parasite_recherche"] ={
+                "sequence" : ["Rhizomanie"],
+                "confidence" : int(1),
+                "area" : cell_box,
+                "format" : format
             }
         
         landscape_dict_res[f"point_{i_point}_k90_{k_90}"] = res_dict_per_zone

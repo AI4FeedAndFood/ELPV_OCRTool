@@ -19,7 +19,7 @@
         "CustomerCode" : ["root", "CustomerCode"],
         "ContractCode" :  ["root", "ContractCode"],
         "Devis" :  ["root", "Devis"],
-        "EngamentJuridique" :  ["root", "EngamentJuridique"],
+        "EngamentJuridique" :  ["AdditionalField", "LO00300"],
         "N_d_echantillon" : ["Sample", "CustomerReference"],
         "date_de_prelevement" : ["AdditionalField", "M005"],
         "nom"  : ["AdditionalField", "LN478"],
@@ -28,7 +28,8 @@
         "pays_d_origine" : ["AdditionalField", "AAA036_pays_origine"],
         "N_de_scelle" : ["AdditionalField", "IP005"],
         "N_de_lot" : ["AdditionalField", "AAM008"],
-        "parasite_package" : ["Sample", "TestCode"],
+        "parasite_test" : ["Sample", "TestCode"],
+        "parasite_package" : ["Sample", "PackageCode"],
         "type_lot" : ["AdditionalField", "IP001"],
         "ref_echantillon" : ["Sample", "ReferenceEchantillon"]
     },
@@ -43,7 +44,7 @@
         "IP010" : "Meloidogyne chitwoodi",
         "IP011" : "Meloidogyne fallax",
         "IP0A1" : "Meloidogyne enterolobii",
-        "IP0B1" : "Naccobus aberrans",
+        "IP0B1" : "Nacobbus aberrans",
 
         "IP01A" : "PVY",
         "IP01M" : "Jambe noire",

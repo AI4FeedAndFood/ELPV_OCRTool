@@ -2,25 +2,25 @@ import os
 import pandas as pd
 import json 
 from datetime import date
-import pytesseract
+import time
 today = str(date.today().strftime("%b-%d-%Y"))
+import numpy as np
 
-from LaunchTool import TextExtractionTool_EVALUATE
+from LaunchTool import TextCVTool
 from JaroDistance import jaro_distance
-custom_config = f'--oem 3 --psm 6'
+
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH)) 
 
 def _condition_fuction(col, proposition, data):
-    proposition = str(proposition)
-    if data == "None":
+    if data in ["None", "Nan", "NaN", "nan", "NAN", np.nan]:
         return None
     if col == "parasite_recherche":
-        proposition = list(proposition)
+        data = data.strip('][').split(', ')
+        proposition = proposition.strip('][').split(', ')
         count = 0
-        data = list(data)
+        data = [d.strip("[]") for d in data]
         for GT_parasite in data:
-            GT_parasite
             if GT_parasite not in proposition:
                 count+=1
         if count == 0:
@@ -31,7 +31,8 @@ def _condition_fuction(col, proposition, data):
             return 0
         
     else:
-        data = str(data)
+        proposition = str(proposition).lower()
+        data = str(data).lower()
         if proposition == data:
             return 2
         if jaro_distance(proposition, data)>0.8:
@@ -40,10 +41,10 @@ def _condition_fuction(col, proposition, data):
             return 0
         
 def eval_text_extraction(path_to_eval, eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate",
-                         result_name = "0_results", custom_config=custom_config):
+                         result_name = "0_results", config= ["paddle", "structure", "en", "no_bin"]):
     
     result_excel_path = os.path.join(eval_path, result_name+".xlsx")
-    data_col = ["root_path", "file_name", "page_number", "full_name"]
+    data_col = ["root_path", "page_name"]
     zones_col = list(OCR_HELPER["hand"].keys())+["format"]
     
     if os.path.exists(result_excel_path):
@@ -52,35 +53,27 @@ def eval_text_extraction(path_to_eval, eval_path = r"C:\Users\CF6P\Desktop\cv_te
     else :
         eval_df = pd.DataFrame(columns=data_col+zones_col) # All detected text for all zones
         proba_df = pd.DataFrame(columns=data_col+zones_col)
-
-    res_dict_per_image = TextExtractionTool_EVALUATE(path_to_eval, custom_config=custom_config)
-    root_path, file_name = os.path.split(path_to_eval)
+    res_image_name, res_dict_per_image, res_image = TextCVTool(path_to_eval, config=config)
     for image, zone_dict in res_dict_per_image["RESPONSE"].items():
-        full_name =  root_path+"_"+os.path.splitext(file_name)[0]+"_"+str(image)
-        row = [root_path, file_name, image, full_name]
+        row = [path_to_eval, image]
         for _, landmark_text_dict in zone_dict.items():
-            row.append(landmark_text_dict["sequences"])
-        print(len(row), row)
-        if len(row) != 14:
-            row.insert(7, [])
-            row.insert(11, [])
-            row.insert(12, [])
+            row.append(landmark_text_dict["sequence"])
+        if len(row) < len(zones_col):
+            row.insert(5, [])
+            row.insert(9, [])
+            row.insert(10, [])
         row.append(landmark_text_dict["format"])
         eval_df.loc[len(eval_df)] = row
     eval_df.to_excel(result_excel_path, sheet_name="results", index=False)
 
     for image, zone_dict in res_dict_per_image["RESPONSE"].items():
-        full_name =  root_path+"_"+os.path.splitext(file_name)[0]+"_"+str(image)
-        row = [root_path, file_name, image, full_name]
+        row = [path_to_eval, image]
         for _, landmark_text_dict in zone_dict.items():
-            conf = [landmark_text_dict["OCR"]["conf"][i] for i in landmark_text_dict["indexes"]]
-            if conf !=[]:
-                row.append(min(conf))
-            else: row.append(0)
-        if len(row) != 14:
-            row.insert(7, [])
-            row.insert(11, [])
-            row.insert(12, [])
+            row.append(int(landmark_text_dict["confidence"]*100))
+        if len(row) < len(zones_col):
+            row.insert(5, [])
+            row.insert(9, [])
+            row.insert(10, [])
         row.append(landmark_text_dict["format"])
         proba_df.loc[len(proba_df)] = row
     
@@ -89,25 +82,24 @@ def eval_text_extraction(path_to_eval, eval_path = r"C:\Users\CF6P\Desktop\cv_te
     
     
 def get_score(result_name, eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\V3",
-              data_excel_path = r"C:\Users\CF6P\Desktop\cv_text\Data\0_data.xlsx"):
+              data_excel_path = r"C:\Users\CF6P\Desktop\ELPV\Data\annotated_data.xlsx"):
     
     result_excel_path = os.path.join(eval_path, result_name+".xlsx")
-    data_df = pd.read_excel(data_excel_path) # The real value of the scan
+    data_df = pd.read_excel(data_excel_path).fillna("NaN") # The real value of the scan
     eval_df = pd.read_excel(result_excel_path)
     zones_col = list(OCR_HELPER["hand"].keys())
-    print(data_df.columns, eval_df.columns)
     print("Evaluation is starting")
     
     data_df.drop(columns=["sheet_format"])
-    data_df = data_df[data_df["full_name"].isin(eval_df["full_name"])].reset_index()
-    score_df= eval_df[eval_df["full_name"].isin(data_df["full_name"])].reset_index()
-    missing_annot = list(eval_df[~eval_df["full_name"].isin(score_df["full_name"])]["full_name"])
+    data_df = data_df[data_df["page_name"].isin(eval_df["page_name"])].reset_index()
+    score_df= eval_df[eval_df["page_name"].isin(data_df["page_name"])].reset_index()
+    missing_annot = list(eval_df[~eval_df["page_name"].isin(score_df["page_name"])]["page_name"])
     if len(missing_annot)!=0:
         print(f" /!\ {missing_annot} Rows are missing in data annotation /!\ ")
-
+    print(eval_df.head(3))
     for col in zones_col:
-        apply_df = score_df[["full_name", col]].merge(data_df[["full_name", col]], how='inner', on=["full_name"])
-        apply_df.columns = ["full_name", col+"_score", col+"_data"]
+        apply_df = score_df[["page_name", col]].merge(data_df[["page_name", col]], how='inner', on=["page_name"])
+        apply_df.columns = ["page_name", col+"_score", col+"_data"]
         score_df[col] = apply_df.apply(lambda x : _condition_fuction(col, x[col+"_score"], x[col+"_data"]), axis=1)
     with pd.ExcelWriter(result_excel_path, mode = 'a') as writer:
         score_df.to_excel(writer, sheet_name="score", index=False)
@@ -117,35 +109,13 @@ def get_score(result_name, eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\
 
 if __name__ == "__main__":
     
-    whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:/°&.=àéçïùê''-"
-    pytesseract.pytesseract.tesseract_cmd = r'exterior_program\Tesseract4-OCR\tesseract.exe'
-    LANG = 'eng+eng2'
-    TESSCONFIG = [1, 6, whitelist, LANG]
-    result_name = "prod_V1"
-    eval_path = r"C:\Users\CF6P\Desktop\cv_text\Evaluate\EVALUATE"
-    l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan2.pdf", 
-         r"C:\Users\CF6P\Desktop\cv_text\Data\scan3.pdf"]
-    # l = [r"C:\Users\CF6P\Desktop\cv_text\Data\scan5-1.pdf"]
-    # for el in l:
-    #     eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
-    # print(get_score(result_name= result_name, eval_path=eval_path))
-    
-    for i in [1]:
-        for k in [6]: 
-            TESSCONFIG = [i, k, whitelist, LANG]
-            result_name = f"results_prod2_{i}_{k}_{LANG}"
-            stack = []
-            try :
-                for el in l:
-                    eval_text_extraction(el, eval_path=eval_path, result_name=result_name, custom_config=TESSCONFIG)
-                stack.append([(i,k, 4, LANG), get_score(result_name=result_name, eval_path=eval_path)])
-                print("############ status #########\n",stack)
-                with open(os.path.join(eval_path, "stack.txt"), 'a') as f:
-                    f.write(str(stack))
-            except pytesseract.pytesseract.TesseractError:
-                print("BUG TESSERACT : ",i, k)
-                pass
-            # except FileNotFoundError:
-            #     print("FILE : ", i, k)
-            #     # pass
+    result_name = "prod_V2.4_Bin"
+    eval_path = r"C:\Users\CF6P\Desktop\ELPV\Eval"
+    start = time.time()
+    eval_text_extraction(eval_path, eval_path=eval_path, result_name=result_name)
+    score = get_score(result_name=result_name, eval_path=eval_path)
+    taken_time = time.time() - start
+    print("############ status #########\n",score,"\n le tout en : (min) ", taken_time/60)
+    with open(os.path.join(eval_path, "stack.txt"), 'a') as f:
+        f.write("\n"+str(score)+" " + str(taken_time))
     

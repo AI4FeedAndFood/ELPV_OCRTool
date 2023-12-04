@@ -1,5 +1,4 @@
 import numpy as np
-import pytesseract
 import json
 from copy import deepcopy
 from unidecode import unidecode
@@ -12,36 +11,116 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from ProcessCheckboxes import crop_image_and_sort_format, get_format_or_checkboxes, Template
-from ProcessPDF import PDF_to_images, binarized_image, delete_lines
-from JaroDistance import jaro_distance
+from paddleocr import PPStructure, PaddleOCR
+from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes, convert_info_docx
 
-whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:.-/°&=àéçëôùê''"
-pytesseract.pytesseract.tesseract_cmd = r'exterior_program\Tesseract4-OCR\tesseract.exe'
-LANG = 'eng+eng2'
-TESSCONFIG = [1, 6, whitelist, LANG]
+from JaroDistance import jaro_distance
+from ProcessCheckboxes import Template, get_checkboxes
+from ProcessPDF import  binarized_image
+
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
 
 lists_df = pd.read_excel(r"CONFIG\\lists.xlsx")
 
-def _text_filter(text):
-    for i, word in enumerate(text):
-        if "£" in word:
-            text[i] = text[i].replace("£", "E")
-        if "N*" in word:
-            text[i] = text[i].replace("N*", "N°")
-        if "{" in word:
-            text[i] = text[i].replace("{", "(")
-        if "{" in word:
-            text[i] = text[i].replace("{", ")")
-        if "’" in word:
-            text[i] = text[i].replace("’", "'")
-        if "!" in word:
-            text[i] = text[i].replace("!", "l")
-    return text 
+NULL_OCR = {"text" : "",
+            "box" : [],
+            "proba" : 0
+           }
 
-def _find_landmarks_index(key_sentences, text): # Could be optimized
+class KeyMatch:
+    def __init__(self, seq_index, confidence, number_of_match, last_place_word, key_index, OCR):
+        self.seq_index = seq_index
+        self.confidence = confidence
+        self.number_of_match = number_of_match
+        self.last_place_word = last_place_word
+        self.key_index = key_index
+        self.OCR = OCR
+
+class ZoneMatch:
+    def __init__(self, local_OCR, match_indices, confidence, res_seq):
+        self.local_OCR = local_OCR
+        self.match_indices = match_indices
+        self.confidence = confidence
+        self.res_seq = res_seq
+
+def paddle_OCR(image):
+
+    def _cleanPaddleOCR(OCR_text):
+        res = []
+        for line in OCR_text:
+            for t in line:
+                    model_dict = {
+                        "text" : "",
+                        "box" : [],
+                        "proba" : 0
+                    }
+                    model_dict["text"] = t[1][0]
+                    model_dict["box"] = t[0][0]+t[0][2]
+                    model_dict["proba"] = t[1][1]
+                    res.append(model_dict)
+        
+        return res
+
+    def _order_by_tbyx(OCR_text):
+        res = sorted(OCR_text, key=lambda r: (r["box"][1], r["box"][0]))
+        for i in range(len(res) - 1):
+            for j in range(i, 0, -1):
+                if abs(res[j + 1]["box"][1] - res[j]["box"][1]) < 20 and \
+                        (res[j + 1]["box"][0] < res[j]["box"][0]):
+                    tmp = deepcopy(res[j])
+                    res[j] = deepcopy(res[j + 1])
+                    res[j + 1] = deepcopy(tmp)
+                else:
+                    break
+        return res
+    
+    ocr = PaddleOCR(use_angle_cls=True, lang='fr', show_log = False) # need to run only once to download and load model into memory
+    results = ocr.ocr(image, cls=True)
+    results = _cleanPaddleOCR(results)
+    results = _order_by_tbyx(results)
+    return results
+
+def paddle_TABLE(image):
+
+    def _clean_res(resStructure):
+        res = []
+        for type_dict in resStructure:
+            if "table" != type_dict["type"]:
+                for _, res_dict in enumerate(type_dict["res"]):
+                    model_dict = {
+                        "text" : "",
+                        "box" : [],
+                        "proba" : 0
+                    }
+                    model_dict["text"] = res_dict["text"]
+                    model_dict["box"] = res_dict['text_region'][0] + res_dict['text_region'][2]
+                    model_dict["box"] = [int(c) for c in model_dict["box"]]
+                    model_dict["proba"] = res_dict["confidence"]
+                    res.append(model_dict)   
+        return res
+    
+    table_engine = PPStructure(recovery=True, lang='en', table=True, show_log = False)
+    result = table_engine(image, return_ocr_result_in_table=False)
+
+    for line in result:
+        line.pop('img')
+
+    print(result[0].keys())
+    if "html" in list(result[0]["res"].keys()):
+        print(result[0]["res"]["html"])
+        table = pd.read_html(result[0]["res"]["html"])
+        table[0].to_excel("res.xlsx")
+
+            
+
+    h, w, = image.shape[:2]
+    res = sorted_layout_boxes(result, w)
+    convert_info_docx(image, res, "", "res")
+
+    return res
+
+def find_match(key_sentences, paddleOCR, box, eta=0.95): # Could be optimized
     """
     Detect if the key sentence is seen by the OCR.
     If it's the case return the index where the sentence can be found in the text returned by the OCR,
@@ -54,324 +133,255 @@ def _find_landmarks_index(key_sentences, text): # Could be optimized
         res_indexes (list) : [[start_index, end_index], [empty], ...]   Contains for each key sentence of the landmark the starting and ending index in the detected text.
                             if the key sentence is not detected res is empty.
     """
-    def _landmark_word_filter(sequence): # Aim to make sure the found sequence of word has no empty string at the start or the end
-        left, right = 0, len(sequence)-1
-        while sequence[left].isspace() or len(sequence[left]) == 0:
-            left+=1
-        while sequence[right].isspace() or len(sequence[right]) == 0:
-            right-=1
-        return sequence[left:right], (left, len(sequence)-1-right)
+    def _get_best(base_match, new_match):
 
-    res_indexes = []
-    for key_sentence in key_sentences: # for landmark sentences from the json
-        key = key_sentence
-        best_key_candidate = key
-        res = []
-        best_dist = 0.80
-        for i_key, key_word in enumerate(key_sentence): # among all words of the landmark
-            for i_word, word in enumerate(text):
-                word = unidecode(word)
-                if key_word.lower() == word.lower(): # if there is a perfect fit in an word (Maybe should be softer but would take more time)
-                    key_candidate = text[i_word-i_key:i_word-i_key+len(key_sentence)]
-                    distance = jaro_distance("".join(key), "".join(key_candidate)) # compute the neighborood matching
-                    if distance > best_dist : # take the matching neighborood among all matching words
-                        # print(key_word, key_candidate)
-                        best_dist = distance
-                        best_key_candidate = key_candidate
-                        res = [i_word-i_key, min(i_word-i_key+len(key_sentence), len(text))] # Start and end indexes of the found key sentence
-                        
-        cor_ratio = len(key) / (len(key) - (len(key)-len(best_key_candidate))) + 0.15
-        cor_ratio = max(1, min(cor_ratio, 1.3))
-            
-        if len(res)>0:
-            res_text =  text[res[0]:res[-1]]
-            res_text, (start_removed, end_removed) = _landmark_word_filter(res_text)
-            res[0], res[1] = res[0]+start_removed, res[1]-end_removed
-        res_indexes.append((res, cor_ratio)) # Empty if not found
-    return res_indexes
+        best = base_match
+        if new_match == None:
+            return best
+        elif base_match.number_of_match < new_match.number_of_match: # Choose best match
+            best = new_match
+        elif (base_match.number_of_match == new_match.number_of_match): # If same number of match, choose the first one
+            best=base_match
+        return best
+    
+    xmin,ymin,xmax, ymax = box
+    best_matches = None
+    for i_place, dict_sequence in enumerate(paddleOCR):
+        x1,y1 = dict_sequence["box"][:2]
+        seq_match = None
+        if xmin<x1<xmax and ymin<y1<ymax:
+            sequence = dict_sequence["text"]
+            for i_key, key in enumerate(key_sentences): # for landmark sentences from the json
+                key_match = None
+                for i_word, word in enumerate(sequence):
+                    word = unidecode(word).lower()
+                    for _, key_word in enumerate(key): # among all words of the landmark
+                        key_word = unidecode(key_word).lower()
+                        if word[:min(len(word),len(key_word))] == key_word:
+                            distance = 1
+                        else :
+                            distance = jaro_distance("".join(key_word), "".join(word)) # compute the neighborood matching
+                        if distance > eta : # take the matching neighborood among all matching words
+                            if key_match == None:
+                                key_match = KeyMatch(i_place, distance, 1, i_word, i_key, dict_sequence)
+                            elif key_match.last_place_word<i_word:
+                                key_match.confidence = min(key_match.confidence, distance)
+                                key_match.number_of_match+=1
+                if seq_match==None : 
+                    seq_match=key_match
+                else:
+                    seq_match = _get_best(seq_match, key_match)
 
-def get_data_and_landmarks(format, cropped_image, JSON_HELPER=OCR_HELPER, ocr_config=TESSCONFIG):
+        if best_matches==None : 
+            best_matches=seq_match
+        else:
+            best_matches = _get_best(best_matches, seq_match)
+    
+    # if best_matches != None : print(best_matches.OCR["text"], key_sentences[best_matches.key_index], best_matches.number_of_match)
+    
+    return best_matches
+
+def clean_sequence(paddle_list, full = "|\[]_!<>{}—;$€&*‘§—~-+", left="'(*): |\[]_!.<>{}—;$€&-"):
+    res_dicts = []
+    for dict_seq in paddle_list:
+        text = dict_seq["text"]
+        text = text.replace(" :", ":") if " :" in text else text
+        text = text.replace(":", ": ") if ":" in text else text
+        text = text.replace(":  ", ": ") if ":  " in text else text
+
+        text = text.replace("_", " ") if "_" in text else text
+        text = text.replace("I'", "l'") if "I'" in text else text
+
+        if not text in full+left:
+            text = [word.strip(full) for word in text.split(" ")]
+            dict_seq["text"] = [word for word in text if word]
+            res_dicts.append(dict_seq)
+
+    return res_dicts
+
+def get_key_matches_and_OCR(format, cropped_image, JSON_HELPER=OCR_HELPER):
     """
     Perform the OCR on the processed image, find the landmarks and make sure there are in the right area 
     Args:
         cropped_image (array)
 
     Returns:
-        res_landmarks (dict) :  { zone : {
-                                "landmark" = [[x,y,w,h], []],
-            }
+        zone_match_dict (dict) :  { zone : Match,
         }
         The coordinate of box around the key sentences for each zone, empty if not found
         OCR_data (dict) : pytesseract returned dict
     """
     image_height, image_width = cropped_image.shape[:2]
-    res_landmarks = {}
+    zone_match_dict = {}
+
     # Search text on the whole image
-    config = f"--oem {ocr_config[0]} --psm {ocr_config[1]} -c tessedit_char_whitelist=" + ocr_config[2]
-    data = ocr_config[3]
-    OCR_data =  pytesseract.image_to_data(cropped_image, output_type=pytesseract.Output.DICT, lang=data, config=config)
-    text = _text_filter(OCR_data["text"])
+    full_img_OCR =  paddle_OCR(cropped_image)
+    full_img_OCR = clean_sequence(full_img_OCR)
     for zone, key_points in JSON_HELPER[format].items():
-        detected_indexes_cor = _find_landmarks_index(key_points["key_sentences"], text)
         landmark_region = key_points["subregion"] # Area informations
-        xmin, xmax = image_width*landmark_region[1][0],image_width*landmark_region[1][1]
         ymin, ymax = image_height*landmark_region[0][0],image_height*landmark_region[0][1]
-        # print("base : ", zone)
+        xmin, xmax = image_width*landmark_region[1][0],image_width*landmark_region[1][1]
+
+        match = find_match(key_points["key_sentences"], full_img_OCR, (xmin,ymin,xmax, ymax))
+        # print("base : ", zone, (xmin, ymin, xmax, ymax))
         # plt.imshow(cropped_image[int(ymin):int(ymax), int(xmin):int(xmax)])
         # plt.show()
-        landmarks_coord = []
-        null = 0 # Relay if an OCR on a biggest area is needed
-        for indexes_cor in detected_indexes_cor:
-            indexes, cor = indexes_cor
-            if len(indexes)!=0 :
-                i_min, i_max = indexes
-                x, y = OCR_data['left'][i_min], OCR_data['top'][i_min]
-                w = abs(OCR_data['left'][i_max-1] - x + OCR_data['width'][i_max-1])
-                h = abs(int(np.mean(np.array(OCR_data['height'][i_min:i_max]))))
-                if xmin<x<xmax and ymin<y<ymax: # Check if the found landmark is in the right area
-                    landmarks_coord.append(("found", [x,y,w,h], cor))
-                    # cv2.rectangle(cropped_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
-                else :
-                    landmarks_coord.append(("default", [], cor))
-                    null+=1
-            else : 
-                landmarks_coord.append(("default", [], cor))
-                null+=1
-                
-        # No detected landmark: Let's search landmark on a smaller region  
-        if null>0:
-            OCR_default_region = pytesseract.image_to_data(cropped_image[int(ymin):int(ymax), int(xmin):int(xmax)], 
-                                                           output_type=pytesseract.Output.DICT,  lang=data, config=config)
-            text_local = _text_filter(OCR_default_region["text"])
-            for i, coord in enumerate(landmarks_coord):
-                if len(coord[1])==0:
-                    detected_index, cor = _find_landmarks_index([key_points["key_sentences"][i]], text_local)[0]
-                    if len(detected_index)!=0 :
-                        i_min, i_max = detected_index
-                        x_relative, y_relative = OCR_default_region['left'][i_min], OCR_default_region['top'][i_min]
-                        x, y = x_relative + int(xmin), y_relative+int(ymin)
-                        w = abs(OCR_default_region['left'][i_max-1] - x_relative + OCR_default_region['width'][i_max-1])
-                        h = abs(int(np.mean(np.array(OCR_default_region['height'][i_min:i_max]))))
-                        landmarks_coord[i] = ("found", [x,y,w,h], cor)
-                    else : 
-                        landmarks_coord[i] = ("default", [int(xmin), int(ymin), int(xmax-xmin), int(ymax-ymin)], cor)
-        res_landmarks[zone] = {"landmark" : landmarks_coord}
-    return OCR_data, res_landmarks
 
-def _process_raw_text_to_sequence(OCR_text):
-    candidate_sequences = [] # Store all sequence
-    candidate_indexes = []
-    sequence = [] # Stack a chunck of non-separated word
-    indexes = []
-    for i, word in enumerate(OCR_text):
-        if not(word.isspace() or len(word) == 0 or word=="|"):
-            sequence.append(word)
-            indexes.append(i)
-        elif len(sequence) != 0: # If space : new sequence
-            if sequence not in candidate_sequences:
-                indexes.append(i)
-                candidate_indexes.append(indexes)
-                candidate_sequences.append(sequence)
-            sequence=[]
-            indexes=[]
-        if i == len(OCR_text)-1 and len(sequence)!=0: # Add last sequence
-            if sequence not in candidate_sequences:
-                candidate_sequences.append(sequence)
-                indexes.append(i+1)
-                candidate_indexes.append(indexes)
-    return candidate_sequences, candidate_indexes
+        if match != None:
+            # print("found : ", zone, " - ", match.OCR["box"])
+            zone_match_dict.update({zone : match })
+            # cv2.rectangle(cropped_image, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        else :
+           base_match = deepcopy(KeyMatch(0, -1, 0, 0, 0, NULL_OCR))
+           base_match.OCR["box"] = [int(xmin), int(ymin), int(xmax), int(ymax)]
+           zone_match_dict.update({zone : base_match})
 
-def _get_area(cropped_image, box, relative_position, corr_ratio=1.15):
+    return zone_match_dict, full_img_OCR
+
+def get_area(cropped_image, box, relative_position, corr_ratio=1.1):
     """
     Get the area coordinates of the zone thanks to the landmark and the given relative position
     Args:
-        box (list): detected landmark box [x,y,w,h]
+        box (list): detected landmark box [x1,y1,x2,y2]
         relative_position ([[vertical_min,vertical_max], [horizontal_min,horizontal_max]]): number of box height and width to go to search the tet
     """
     im_y, im_x = cropped_image.shape[:2]
-    x,y,w,h = box
+    x1,y1,x2,y2 = box
+    h, w = abs(y2-y1), abs(x2-x1)
     h_relative, w_relative = h*(relative_position[0][1]-relative_position[0][0])//2, w*(relative_position[1][1]-relative_position[1][0])//2
-    y_mean, x_mean = y+h*relative_position[0][0]+h_relative, x+w*relative_position[1][0]+w_relative
-    x_min, x_max = max(x_mean-w_relative*corr_ratio,0), min(x_mean+w_relative*corr_ratio, im_x)
-    y_min, y_max = max(y_mean-h_relative*corr_ratio, 0), min(y_mean+h_relative*corr_ratio, im_y)
+    y_mean, x_mean = y1+h*relative_position[0][0]+h_relative, x1+w*relative_position[1][0]+w_relative
+    x_min, x_max = max(x_mean-w_relative*corr_ratio,0), min(x_mean+w_relative*corr_ratio*2, im_x)
+    y_min, y_max = max(y_mean-h_relative*corr_ratio, 0), min(y_mean+h_relative*corr_ratio*2, im_y)
     (y_min, x_min) , (y_max, x_max) = np.array([[y_min, x_min], [y_max, x_max]]).astype(int)[:2]
-    return y_min, y_max, x_min, x_max
-
-def get_candidate_local_OCR(cropped_image, landmark_boxes, relative_positions, format, ocr_config=TESSCONFIG):
-    """_summary_
-
-    Args:
-        cropped_image
-        landmark_boxes (list of 4 ints): [box_type, box, cor] with box_type(default or found), box([x,y,w,h] of the landmark) and cor the ratio of the merge to take around the landmark
-        relative_positions (list of a list of 2 factors): [[[x_1,x_2], [y_1,y_2], [....]] with (x_1, x_2), the the factor that multiply the height of the landmark_box.
-            indicat the position of the the new area.
-        format
-        ocr_config: Defaults to TESSCONFIG.
-
-    Returns:
-       OCRs_and_candidates_list (list of dict): The dict result for each landmark. The dict include OCR, type, box, sequences, indexes, format
-    """
-    OCRs_and_candidates_list = []
-    for n_landmark, relative_position in enumerate(relative_positions):
-        res_dict = {}
-        box_type, box, cor = landmark_boxes[n_landmark] 
-        relative_position = [[0,1], [0,1]] if box_type == "default" else relative_position
-        y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position, corr_ratio=cor)
-        searching_area = cropped_image[y_min:y_max, x_min:x_max]
-        searching_area = np.pad(searching_area, 5,  constant_values=255)
-        # plt.imshow(searching_area)
-        # plt.show()
-        config = f' --oem {ocr_config[0]} --psm {ocr_config[1]} -c tessedit_char_whitelist=' + ocr_config[2]
-        data = ocr_config[3]
-        local_OCR = pytesseract.image_to_data(searching_area, output_type=pytesseract.Output.DICT, lang=data, config=config)
-        local_OCR["text"] = _text_filter(local_OCR["text"])
-        # print(local_OCR["text"])
-        candidate_sequences, candidate_indexes = _process_raw_text_to_sequence(local_OCR["text"])
-        # print(candidate_sequences)
-        res_dict["OCR"], res_dict["type"], res_dict["box"] = local_OCR, box_type, [int(y_min), int(y_max), int(x_min), int(x_max)]
-        res_dict["sequences"], res_dict["indexes"] = candidate_sequences, candidate_indexes
-        res_dict["format"] = format
-        OCRs_and_candidates_list.append(res_dict)
-
-    check_seq = []
-    for i_candidate, candidate_dict in enumerate(OCRs_and_candidates_list): # delete double sequence
-        res_seq, res_index = [], []
-        for i_seq, seq in enumerate(candidate_dict["sequences"]):
-            if not seq in check_seq:
-                check_seq.append(seq)
-                res_seq.append(seq)
-                res_index.append(candidate_dict["indexes"][i_seq])
-        if res_seq == [] and check_seq != []:
-            del OCRs_and_candidates_list[i_candidate]
-        else:
-            OCRs_and_candidates_list[i_candidate]["sequences"], OCRs_and_candidates_list[i_candidate]["indexes"] = res_seq, res_index
-    return OCRs_and_candidates_list
+    return x_min, y_min, x_max, y_max
 
 def _list_process(check_word, candidate_sequence, candidate_index):
+    """ 
+    Returned a dict wich carry the information about the best matched word among all sequences
+    """
     max_jaro = 0.89
-    max_stack = [False, None, 0]
+    status_dict = {
+        "find" : False,
+        "index" : -1,
+        "jaro" : 0,
+        "word" : ""
+    }
     for i_word, word in enumerate(candidate_sequence):
+        if word.strip(": _;").lower() == check_word.lower() :
+            status_dict["find"], status_dict["index"] = True, candidate_index[i_word]
+            status_dict["jaro"], status_dict["word"] = 1, check_word
+            return status_dict
+        
         jaro = jaro_distance(word.lower(), check_word.lower())
-        if jaro == 1 :
-            return True, candidate_index[i_word], 1
-        elif jaro > max_jaro:
-            max_stack = [True, candidate_index[i_word], jaro]
-    return max_stack
+        if jaro > max_jaro:
+            status_dict["find"], status_dict["index"] = True, candidate_index[i_word]
+            status_dict["jaro"], status_dict["word"] = jaro, check_word
 
-def _after_key_process(key_sequences, clean_sequences, clean_indexes, similarity=0.9):
-    def _get_match(start, start_seq, stop):
-        for place in range(start, min(start+search_range+2, len(start_seq))):
-            word = unidecode(start_seq[place])
-            try:
-                index = word.rindex(stop)
-                res_word = word[index+len(stop):]
-                if res_word == "" and place < len(start_seq)-1:
-                    return place+1, start_seq[place+1]
-                if res_word == "" and place == len(start_seq)-1:
-                    return -1, stop
-                return place, res_word
-            except ValueError:
-                pass
-        return start, start_seq[start]
+    return status_dict
+
+def _after_key_process(bound_keys, candidates, similarity=0.9, skip=0):
+
+    def _get_wanted_seq(full_seq, target_words, search_range):
+        """
+        Find the place of the target_word and the following of the sentence after the word
+        
+        Return the index and new full sequence
+        """
+        res_index = 0
+        for target_word in target_words:
+            target_word = unidecode(target_word).lower()
+            for place in range(min(search_range+2, len(full_seq))):
+                word = unidecode(full_seq[place]).lower()
+                try:
+                    index = word.rindex(target_word)
+                    res_word = word[index+len(target_word):]
+                    if res_word == "" and place < len(full_seq)-1: # The target is at the end of a word
+                        res_index+=place
+                        full_seq = full_seq[place+1:]
+                        break
+                    if res_word == "" and place == len(full_seq)-1: # The target is at the end of the seq
+                        return -1, []
+                    
+                    full_seq[place] = res_word
+                    res_index+=place
+                    full_seq = full_seq[place:]
+                    break
+                
+                except ValueError:
+                    pass
+        
+        return res_index, full_seq
     
     strip = '().*:‘;,§"'+"'"
-    matching_key_place_stack, matching_word_place_stack = [[], []], [[], []]
-    # Get the begining and and the end of the sequence to take what is between
-    for _, candidate_sequence in enumerate(clean_sequences):
-        matching_key_place, matching_word_place = [[], []], [[], []] # Store the matching key index and the place on the candidate seq
-        for state, key_seq in enumerate(key_sequences):
-            for i_key, key_word in enumerate(key_seq):
-                    for i_word, word in enumerate(candidate_sequence):
-                        try:
-                            if int(key_word) == int(word): # Number key_word case
-                                matching_key_place[state].append(i_key)
-                                matching_word_place[state].append(i_word)
-                                break
-                        except:
-                            if (jaro_distance(key_word, unidecode(word).strip(strip))>similarity):
-                                matching_key_place[state].append(i_key)
-                                matching_word_place[state].append(i_word)
-                                break
-                            if key_word.strip("°").isalpha():
-                                    if key_word in word:
-                                        matching_word_place[state].append(i_word)
-                                        matching_key_place[state].append(i_key)
-                                        break
-                            
-        matching_key_place_stack[0].append(matching_key_place[0]) # 0 place is start, 1 is end
-        matching_word_place_stack[0].append(matching_word_place[0])
-        matching_key_place_stack[1].append(matching_key_place[1])
-        matching_word_place_stack[1].append(matching_word_place[1])
-        
-    if matching_key_place_stack[0] == [] :
-        return [], []
-    # Clean the first sentence from the landmark
-    _get_candidate = lambda stack : sorted([(i, len(l_stack)) for i, l_stack in enumerate(stack)], key=lambda y: (-y[1], y[0]))[0][0] # Most matched sentence, the firt one in case of tie
-    start_seq_id, end_seq_id = _get_candidate(matching_key_place_stack[0]), _get_candidate(matching_key_place_stack[1])
-    start_seq, start_index =  clean_sequences[start_seq_id], clean_indexes[start_seq_id]
-    end_seq, _ =  clean_sequences[end_seq_id], clean_indexes[end_seq_id]
-    i_keyword_found, i_keymatch_candidate = matching_key_place_stack[0][start_seq_id], matching_word_place_stack[0][start_seq_id]
-    if i_keyword_found == []:
-        return [], []
-    search_range = (len(key_sequences[0]) - i_keyword_found[-1]) # Last detetcted word by all word you want to detect
-    stop_elmt = key_sequences[0][-1].split(" ") + ["(*)", ":"]
-    start = i_keymatch_candidate[-1]
-    for stop in stop_elmt:
-        place_word = _get_match(start, start_seq, stop)
-        if place_word[0] != start:
-            start+=1
-        if place_word[0] == -1:
-            if start_seq_id < len(clean_sequences)-1:
-                start = 0
-                start_seq_id+=1
-                start_seq, start_index =  clean_sequences[start_seq_id], clean_indexes[start_seq_id]
-                if start_seq_id == end_seq_id:
-                    end_seq_id+=1
-            else: 
-                return [], []
-    start_seq[place_word[0]] = place_word[1]
-    start_seq = start_seq[place_word[0]:]
-    start_index = start_index[place_word[0]:]
-    if start_seq == []:
-        start_seq_id, end_seq_id = start_seq_id+1, end_seq_id+1
-        start_seq, start_index =  clean_sequences[start_seq_id], clean_indexes[start_seq_id]        
-    if start_seq[0].strip(strip) == "":
-        start_seq = start_seq[1:]
-        start_index = start_index[1:]
-    if start_seq != []:
-        start_seq[0] = start_seq[0].lstrip(strip)
-    clean_sequences[start_seq_id], clean_indexes[start_seq_id]  = start_seq, start_index
-    if end_seq_id - start_seq_id <= 1: # One sequence to res
-        return clean_sequences[start_seq_id], clean_indexes[start_seq_id]
-    res_seq, res_index = [], [] # More than one seq to res
+    ref = {0:"start", 1:"end"}
+    key_boundaries = {"start" : [], "end" : []} 
+
+    # Get the all matched between keys and sequences for the start and the end key
+    for state, bound_key in enumerate(bound_keys):
+        for i_key, key_word in enumerate(bound_key):
+            for i_candidate, candidate_sequence in enumerate(candidates):
+                    for i_word, word in enumerate(candidate_sequence["text"]):
+                        word, key_word = unidecode(word).lower(), unidecode(key_word).lower()
+                        word_match = {"i_key" : -1,
+                                      "i_candidate" : -1,
+                                      "i_word" : -1} # Store the matching key index and the place on the candidate seq
+                        # If the rwo words are close
+                        if (jaro_distance(key_word, unidecode(word).strip(strip))>similarity):
+                            word_match["i_key"],  word_match["i_candidate"], word_match["i_word"] = i_key, i_candidate, i_word
+                            key_boundaries[ref[state]].append(word_match)
+                            break
+                        # If a sequence word is containing a key_word
+                        if len(key_word)>2 and key_word in word:
+                            word_match["i_key"],  word_match["i_candidate"], word_match["i_word"] = i_key, i_candidate, i_word
+                            key_boundaries[ref[state]].append(word_match)
+                            break
     
-    for i in range(start_seq_id,end_seq_id):
-        res_seq+= clean_sequences[i]
-        res_index+= clean_indexes[i]
-    return res_seq, res_index
+    if key_boundaries["start"] == [] :
+        if len(candidates)==1:
+            print("DEFAULT CASE :", candidates[0]["text"])
+            return [0], candidates[0]["text"]
+        return [], []
 
-def _clean_local_sequences(sequence_index_zips, key_main_sentences, conditions):
-    strip_string_after_key = " |\[]_!.<>{}—;"
-    strip_string_others = '"()*: |\/[]_!.<>{}—;-'
-    cleaned_candidate, cleaned_indexes = [], []
-    key_sentences = [word for sentence in key_main_sentences for word in sentence]
-    for candidate_sequence, candidate_indexes in sequence_index_zips:
-        res_candidate_sequence, res_candidate_indexes = [], []
-        for i_word, word in enumerate(candidate_sequence):
-            if "after_key" not in [condition[0] for condition in conditions]:
-                if any(c.isalnum() for c in unidecode(word)):
-                    if word not in key_sentences:
-                        res_candidate_sequence.append(word.strip(strip_string_others))
-                        res_candidate_indexes.append(candidate_indexes[i_word])
-            else:
-                res_candidate_sequence.append(word.strip(strip_string_after_key))
-                res_candidate_indexes.append(candidate_indexes[i_word])
-                    
-        cleaned_candidate.append(res_candidate_sequence)
-        cleaned_indexes.append(res_candidate_indexes)
-    return cleaned_candidate, cleaned_indexes
+    # Get boundaries of the desired text
+    _order_by_match_candidate = lambda match_list : sorted(match_list, 
+                                                key=lambda match : ([d["i_candidate"] for d in match_list].count(match["i_candidate"]), -match["i_candidate"]), 
+                                                                    reverse=True) # Most matched sentence, the firt one in case of tie
+   
+    last_start_match = sorted(_order_by_match_candidate(key_boundaries["start"]), key=lambda d:d["i_key"], reverse=True)[0]
 
-def condition_filter(candidates_dicts, key_main_sentences, conditions):
+    if last_start_match["i_word"] == len(candidates[last_start_match["i_candidate"]]["text"])-1:
+        if last_start_match["i_candidate"] == len(candidates)-1:
+            return [], []
+        last_start_match["i_candidate"], last_start_match["i_word"] = last_start_match["i_candidate"]+1, 0
+
+    if key_boundaries["end"]==[]:
+        first_end_seq_id = deepcopy(last_start_match) # Equivalent to a mis match : Will be changed in the next step
+    else:
+        first_end_seq_id = sorted(_order_by_match_candidate(key_boundaries["end"]), key=lambda d:d["i_key"], reverse=False)[0]
+        # Empty field case
+        if (first_end_seq_id["i_candidate"], first_end_seq_id["i_word"]) == (last_start_match["i_candidate"], last_start_match["i_word"]):
+            return [],  []
+ 
+    # If there is a mismatch, end is set as the sequence that followed the start
+    if first_end_seq_id["i_candidate"] <= last_start_match["i_candidate"] :
+        first_end_seq_id["i_candidate"] = min(last_start_match["i_candidate"]+1, len(candidates))
+        first_end_seq_id["i_word"] = 0
+
+    text_candidates = [candidates[i]["text"] for i in range(last_start_match["i_candidate"], first_end_seq_id["i_candidate"])]
+    text_candidates[0] = text_candidates[0][last_start_match["i_word"]:]
+
+    # Get all the found text as a list of string words
+    all_text = [word for text_candidate in text_candidates for word in text_candidate]
+    all_local_indices = [i for i,text in enumerate(text_candidates) for s in range(len(text))]
+
+    search_range = (len(bound_keys[0]) - last_start_match["i_key"]) # 0> if the last detected word is not the last key word 
+    target_words = [bound_keys[0][-1]] + ["(*):"]
+    
+    line_index, res_seq = _get_wanted_seq(all_text, target_words, search_range)
+
+    return [all_local_indices[line_index]], res_seq
+
+def condition_filter(candidates_dicts, condition):
     """_summary_
 
     Args:
@@ -382,428 +392,301 @@ def condition_filter(candidates_dicts, key_main_sentences, conditions):
     Returns:
         _type_: _description_
     """
-    OCRs_and_candidates = deepcopy(candidates_dicts)
-    OCRs_and_candidates_filtered = []
-    for candidate_dict in OCRs_and_candidates:
-        strip_string_others = '"()* |\/[]_!.<>‘{}:—;~-+'
-        zipped_seq = zip(candidate_dict["sequences"], candidate_dict["indexes"])
-        clean_sequence, clean_indexes = _clean_local_sequences(zipped_seq, key_main_sentences, conditions)
-        zipped_seq = zip(clean_sequence, clean_indexes)
-        for condition in conditions:
-            new_sequence, new_indexes = [], []
-            if condition[0] == "after_key": 
-                key_sequences = condition[1] # Start and end key_sentences
-                found_sequence, found_index = _after_key_process(key_sequences, clean_sequence, clean_indexes)
-                new_sequence.append(found_sequence)
-                new_indexes.append(found_index)
-                    
-            if condition[0] == "date": # Select a date format
-                for candidate_sequence, candidate_index in zipped_seq:
-                    for i_word, word in enumerate(candidate_sequence):
-                        word_init = word
-                        try:
-                            word = word.lower().strip(strip_string_others+"abcdefghijklmnopqrstuvwxyz")
-                            _ = bool(datetime.strptime(word, "%d/%m/%Y"))
-                            new_sequence.append([word])
-                            new_indexes.append([candidate_index[i_word]])
-                        except ValueError:
-                            pass
-                        
-                        try: # Case dd/mm/yy
-                            word = word.lower().strip(strip_string_others+"abcdefghijklmnopqrstuvwxyz")
-                            word = word[:-2] + "20" + word[-2:]
-                            _ = bool(datetime.strptime(word, "%d/%m/%Y"))
-                            new_sequence.append([word])
-                            new_indexes.append([candidate_index[i_word]])
-                        except ValueError:
-                            word = word_init
-                        try: # Case month in letter
-                            word = word.lower().strip(strip_string_others)
-                            _ = bool(datetime.strptime(word, "%B"))
-                            full_date = "".join(candidate_sequence[i_word-1:i_word+2])
-                            _ = bool(datetime.strptime(full_date, "%d%B%Y"))
-                            new_sequence.append(candidate_sequence[i_word-1:i_word+2])
-                            new_indexes.append(candidate_index[i_word-1:i_word+2])
-                        except ValueError:
-                            pass
-                    
-            if condition[0] == "echantillon": # A special filter for numero d'echantillon
-                base1, base2 = condition[1] # Thresholds
-                for candidate_sequence, candidate_index in zipped_seq: # Detected sequences wich need iteration over themselves
-                    for i_word, word in enumerate(candidate_sequence):
-                        if len(word)>7:
-                            try_list = [(base1+2000, base2+2000), (base1,base2)]
-                            for date_tuple in try_list:
-                                num1, num2 = date_tuple[0], date_tuple[1]
-                                if word[:len(str(num1))].isnumeric():
-                                    date_num, code_num = word[:len(str(num1))], word[len(str(num1)):].upper()
-                                    if num1 <= int(date_num) < num2 : # Try to avoid strings shorter than NUM
-                                        res="".join(candidate_sequence[i_word:])
-                                        res_upper = res.upper()
-                                        # Replace common mistake
-                                        correction_list = [("MPA", "MP4"), ("N0", "NO"), ("AUOP", "AU0P"), ("CEOP", "CE0P"), ("GEL0", "GELO"), ("PLOP", "PL0P"), 
-                                         ("PLIP", "PL1P"), ("NCIP", "NC1P"), ("NCIE", "NC1E"), ("S0R", "SOR"), ("1F", "IF")]
-                                        for cor_tuple in correction_list:
-                                            error, correction = cor_tuple
-                                            if code_num[:len(error)] == error:
-                                                res_upper = res_upper.replace(error, correction, 1)
-                                                break # One possibility
-                                        if code_num[5:9] == "S0PDT": # Unique case
-                                            res_upper.replace("SP0DT", "SOPODT", 1)
-                                        
-                                        new_sequence.append([res_upper])
-                                        new_indexes.append(candidate_index[i_word:])
+    strip =  "|\[]_!<>{}—;$€&*‘§—~-'(*):" + '"'
+    # Arbitrary set
+    candidates = deepcopy(candidates_dicts)
+    match_indices, res_seq = [], []
+
+    if condition[0] == "after_key":
+        bound_keys = condition[1] # Start and end key_sentences
+
+        match_indices, res_seq = _after_key_process(bound_keys, candidates)
+            
+    if condition[0] == "date": # Select a date format
+        for i_candidate, candidate in enumerate(candidates):
+            for i_word, word in enumerate(candidate["text"]):
+                word_init = word
+                try:
+                    word = word.lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
+                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
+                    match_indices, res_seq = [i_candidate], [word]
+                except ValueError:
+                    pass
+
+                try:
+                    word = word[:10].lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
+                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
+                    match_indices, res_seq = [i_candidate], [word]
+                except ValueError:
+                    pass
+                
+                try: # Case dd/mm/yy
+                    word = word.lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
+                    word = word[:-2] + "20" + word[-2:]
+                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
+                    match_indices, res_seq = [i_candidate], [word]
+                except ValueError:
+                    word = word_init
+
+                try: # Case month in letter
+                    word = word.lower().strip(strip)
+                    _ = bool(datetime.strptime(word, "%B"))
+                    full_date = "".join(candidate[i_word-1:i_word+2])
+                    _ = bool(datetime.strptime(full_date, "%d%B%Y"))
+                    match_indices, res_seq = [i_candidate], [word]
+                except:
+                    pass
+            
+    if condition[0] == "echantillon": # A special filter for numero d'echantillon
+        base1, base2 = year-1, year+2 # Thresholds
+        for i_candidate, candidate in enumerate(candidates):
+            if len(candidate["text"])<4:
+                for i_word, word in enumerate(candidate["text"]):
+                    if len(word)>3 and not "/" in word:
+                        try_list = [(base1-2000, base2-2000), (base1,base2)]
+                        for date_tuple in try_list:
+                            num1, num2 = date_tuple
+                            if word[:len(str(num1))].isnumeric():
+                                date_num, code_num = word[:len(str(num1))], word[len(str(num1)):].upper()
+                                if num1 <= int(date_num) < num2 : # Try to avoid strings shorter than NUM
+                                    res="".join(candidate["text"][i_word:])
+                                    res_upper = res.upper()
+                                    
+                                    # Replace common mistake
+                                    correction_list = [("MPA", "MP4"), ("N0", "NO"), ("AUOP", "AU0P"), ("CEOP", "CE0P"), ("GEL0", "GELO"), ("PLOP", "PL0P"), 
+                                        ("PLIP", "PL1P"), ("NCIP", "NC1P"), ("NCIE", "NC1E"), ("S0R", "SOR"), ("1F", "IF")]
+                                    for cor_tuple in correction_list:
+                                        error, correction = cor_tuple
+                                        if code_num[:len(error)] == error:
+                                            res_upper = res_upper.replace(error, correction, 1)
+                                            break # One possibility
+                                    if code_num[5:9] == "S0PDT": # Unique case
+                                        res_upper.replace("SP0DT", "SOPODT", 1)
+                                    
+                                    match_indices, res_seq = [i_candidate], [res_upper]
                         if "GECA" in word:
-                            res_upper = str(year)+word
-                            index = [candidate_index[i_word-1], candidate_index[i_word]]
+                            res_upper = str(year)+word if str(year) not in word else word
                             try :
-                                if candidate_sequence[i_word+1].isnumeric():
-                                    res_upper += candidate_sequence[i_word+1]
-                                    index.append(candidate_index[i_word+1])
+                                if candidate["text"][i_word+1].isnumeric():
+                                    res_upper += candidate["text"][i_word+1]
                             except:
                                 pass
-                            new_sequence.append([res_upper])
-                            new_indexes.append(index)
+                            match_indices, res_seq = [i_candidate], [res_upper]
 
-            if condition[0] == "list": # In this case itertion is over element in the condition list
-                concat_seq, concat_index = [], []
-                matched_jaro = []
-                mode = condition[2]
-                for candidate_sequence, candidate_index in zipped_seq:
-                    concat_seq+=candidate_sequence
-                    concat_index+= candidate_index
-                check_list = list(lists_df[condition[1]].dropna())
-                for check_elmt in check_list:
-                    check_indexes=[]
-                    jaro_elmt=[]
-                    check_words = check_elmt.split(" ")
-                    for check_word in check_words:
-                        status, index, jaro = _list_process(check_word, concat_seq, concat_index)
-                        if status: # If a check word is found : stack it
-                            check_indexes.append(index)
-                            jaro_elmt.append(jaro)
-                        if len(check_indexes) == len(check_words) and check_elmt not in new_sequence: # All word of the checking elements are in the same candidate sequence                          print(check_elmt, jaro_elmt)
-                            new_sequence.append([check_elmt])
-                            new_indexes.append(check_indexes)
-                            matched_jaro.append(min(jaro_elmt))
-                if mode == "multiple": # Return all found elements sorted by index
-                    sorted_res = sorted(zip(new_sequence, new_indexes, matched_jaro), key=lambda x: x[1][0])
-                if mode == "single":
-                    sorted_res = sorted(zip(new_sequence, new_indexes, matched_jaro), key=lambda x: x[2], reverse=True)
-                
-                if sorted_res != []:
-                    new_sequence , new_indexes, jaro = zip(*sorted_res)
-                    if mode == "single":
-                        new_sequence, new_indexes = [new_sequence[0]], [new_indexes[0]]
+    if condition[0] == "list": # In this case itertion is over element in the condition list
+        all_text, all_indices = [], []
+        matched_elmts = []
+        mode = condition[2]
+
+        for i_text, dict_text in enumerate(candidates):
+            all_text+=dict_text["text"]
+            all_indices+= [i_text for i in range(len(dict_text["text"]))]
+
+        check_list = list(lists_df[condition[1]].dropna())
+        for check_elmt in check_list:
+            found_elmts = []
+            check_words = check_elmt.split(" ")
+            for check_word in check_words:
+                found_dict = _list_process(check_word, all_text, all_indices)
+                if found_dict["find"]: # If a check word is found : stack it
+                    found_elmts.append(found_dict)
+        
+                if len(found_elmts) == len(check_words) and check_elmt not in [matched_elmt["element"] for matched_elmt in matched_elmts]: # All word of the checking elements are in the same candidate sequence                          print(check_elmt, jaro_elmt)
                     
-            if condition[0] == "cell": 
-                for candidate_sequence, candidate_index in zipped_seq:
-                    new_sequence += candidate_sequence
-                    new_indexes += candidate_index
-                new_sequence, new_indexes = [new_sequence], [new_indexes]
-                
-            if condition[0] == "default":
-                new_sequence, new_indexes = [condition[1]], []
+                    matched_elmts.append({
+                                        "element": check_elmt,
+                                        "words" : found_elmts,
+                                        "jaro" : min([d["jaro"] for d in found_elmts]),
+                                        "index" : np.median(np.array([d["index"] for d in found_elmts], dtype=np.int64))
+                                        })
+        matched_elmts = sorted(matched_elmts, key=lambda x: x["index"])
+        
+        if matched_elmts:
+            if mode == "multiple": # Return all found elements sorted by index
+                res_seq, match_indices = [matched_elmt["element"] for matched_elmt in matched_elmts], [int(matched_elmt["index"]) for matched_elmt in matched_elmts]
+            if mode == "single":
+                matched_elmts = sorted(matched_elmts, key=lambda x: (x["jaro"], -x["index"]), reverse=True)
+                res_seq, match_indices = [matched_elmts[0]["element"]], [int(matched_elmts[0]["index"])]
             
-            new_sequence_res, new_indexes_res = [], []            
-            for i in range(len(new_sequence)):
-                if new_sequence[i] != []:
-                    new_sequence_res.append(new_sequence[i])
-                    new_indexes_res.append(new_indexes[i])
-            zipped_seq = zip(new_sequence_res, new_indexes_res)
-            
-        candidate_dict["sequences"], candidate_dict["indexes"] = new_sequence_res, new_indexes_res
-        OCRs_and_candidates_filtered.append(candidate_dict)
-    return OCRs_and_candidates_filtered
-                
-def get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_boxes, relative_positions):
-    TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
-             lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))]
-    
-    def _get_checkbox_word(sequence, index, ref_word_list, strips = ["1I ‘1[]JL_-|", "CI 1()[]‘JL_-|"]): # Several strips to be careful with word starting with C or I
-        for i_word, word in enumerate(sequence):
-            for strip in strips:
-                strip_word = word.strip(strip)
-                if strip_word in ref_word_list:
-                    return [strip_word], [index[i_word]]
-        return [], []
+    if condition[0] == "cell":
+        match_indices, res_seq = [], []
+        for i_text, dict_text in enumerate(candidates):
+            res_seq+=dict_text["text"]
+            match_indices+=[i_text]
 
-    OCRs_and_candidates_list = []
-    for n_landmark, relative_position in enumerate(relative_positions):
-        res_dict = {}
-        box_type, box, _ = landmark_boxes[n_landmark]
-        relative_position = [[0,1], [0,1]] if box_type == "default" else relative_position
-        y_min, y_max, x_min, x_max = _get_area(cropped_image, box, relative_position)
-        searching_area = cropped_image[y_min:y_max, x_min:x_max]
-        templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.4, transform_list=TRANSFORM)]
-        checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
-        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)[:3]
-        sorted_checkboxes = sorted([checkbox for checkbox in sorted_checkboxes], key=lambda obj: obj["TOP_LEFT_X"], reverse=False)[:2]
-        res_dict["OCR"] = {}
-        res_dict["type"], res_dict["box"] = box_type,  [int(y_min), int(y_max), int(x_min), int(x_max)]
-        res_dict["sequences"], res_dict["indexes"] = [], []
-        res_dict["format"] = format
-        for cross in sorted_checkboxes:
-            x1,y1, x2,y2= cross["TOP_LEFT_X"], cross["TOP_LEFT_Y"], cross["BOTTOM_RIGHT_X"], cross["BOTTOM_RIGHT_Y"]
-            h, w = abs(y2-y1), abs(x2-x1)
-            end_x = min(x_max, x2+2*w)
-            y1, y2 = max(int(y1-h/2),0) , min(y_max,int(y2+h/2))
-            new_area = searching_area[y1:y2, x2:end_x]
-            sequence = []
-            c=0 # Make sure it's not looping forever
-            while c<2:
-                c+=1
-                local_OCR = pytesseract.image_to_data(np.pad(new_area, 20,  constant_values=255), output_type=pytesseract.Output.DICT, config = '--oem 1 --psm 6')
-                sequence, index = _process_raw_text_to_sequence(local_OCR["text"])
-                if len(sequence)>0:
-                    res_word, res_index = _get_checkbox_word(sequence[0], index[0], checkbox_dict["list"]) # POSTULATE : sequence is contains only one list
-                    if res_word != []:
-                        res_dict["OCR"] = local_OCR
-                        res_dict["sequences"], res_dict["indexes"] = [res_word], [res_index]
-                        OCRs_and_candidates_list.append(res_dict)
-                        break
-                end_x += 2*w
-                end_x = min(x_max, end_x)
-                new_area = searching_area[y1:y2, x2:end_x]
-                
-            if res_dict["sequences"] != []: # Stop the iteration over crosses 
-                break
-        if OCRs_and_candidates_list == []:
-            OCRs_and_candidates_list.append(res_dict)
-        
-    return OCRs_and_candidates_list
+    return match_indices, res_seq
     
-def get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_image):
+def get_checkbox_table_format(checkbox_dict, parasites, match_indices, candidate_dicts, area_image, yshift):
     TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
-                lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))]
-    templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.51, transform_list=TRANSFORM)]
-    
-    OCRs_and_candidates_list = []
-    templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.51, transform_list=TRANSFORM)]        
-    for candidate_dict in clean_OCRs_and_candidates:
-        res_dict = candidate_dict
-        y_min, y_max, x_min, x_max = candidate_dict["box"]
-        searching_area = cropped_image[y_min:y_max, x_min:x_max]
-        # searching_area = delete_lines(searching_area)
-        checkboxes = get_format_or_checkboxes(searching_area, mode="get_boxes", TEMPLATES=templates, show=False)
-        sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)
+                lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))]   
+    templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.71, transform_list=TRANSFORM)]        
+    checkboxes = get_checkboxes(area_image, TEMPLATES=templates, show=False)
+    sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)
+
+    check_parasite, parasite_indices, matched_check_box = [], [], []
+
+    for checkbox in sorted_checkboxes:
+        top_mid_bottom = [checkbox["TOP_LEFT_Y"], (checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2, checkbox["BOTTOM_RIGHT_Y"]]
+        for i_cand, parasite in enumerate(parasites):
+            x1, y1, x2, y2 = candidate_dicts[match_indices[i_cand]]["box"] # Parasite position    
+            y1, y2 = y1-yshift, y2-yshift  
+            if any([y1<point<y2 for point in top_mid_bottom]): # Can select multiple choices
+                check_parasite.append(parasite)
+                parasite_indices.append(match_indices[i_cand])
+                matched_check_box.append(checkbox)
         
-        parasite_location = []
-        for parasite, indexes in zip(candidate_dict["sequences"], candidate_dict["indexes"]):
-            parasite_dict =  {}
-            parasite_dict["parasite"], parasite_dict["indexes"] = parasite, indexes
-            last_index = indexes[-1]
-            parasite_dict["top"], parasite_dict["height"] = res_dict["OCR"]["top"][last_index], res_dict["OCR"]["height"][last_index]
-            parasite_location.append(parasite_dict)
-            
-        parasite_list, parasite_index = [], []
-        check_not_matched = []
-        for checkbox in sorted_checkboxes:
-            top_mid_bottom = [checkbox["TOP_LEFT_Y"], (checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2, checkbox["BOTTOM_RIGHT_Y"]]
-            found = False
-            for parasite_dict in parasite_location:
-                if any([parasite_dict["top"]<point<(parasite_dict["top"]+parasite_dict["height"]) for point in top_mid_bottom]): # Can select multiple choices
-                    parasite_list.append(parasite_dict["parasite"])
-                    parasite_index.append(parasite_dict["indexes"])
-                    found = True
-            if found == False:
-                check_not_matched.append(checkbox)
-        
-        for checkbox in check_not_matched:
-            distance_list = [] 
-            for parasite_dict in parasite_location:
-                if parasite_dict["parasite"] not in parasite_list:
-                    dist = abs((parasite_dict["top"]+parasite_dict["height"]/2)-(checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2)
-                    if dist < 100:
-                        distance_list.append((dist, parasite_dict))
-                else: pass
+    for checkbox in [check for check in sorted_checkboxes if not check in matched_check_box]:
+        distance_list = [] 
+        for i_cand, parasite in enumerate(parasites):
+            if parasite not in check_parasite:
+                x1, y1, x2, y2 = candidate_dicts[match_indices[i_cand]]["box"] # Parasite position
+                y1, y2 = y1-yshift, y2-yshift
+                dist = abs((y1+y2)-(checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"]))/2
+                if dist < 100:
+                    distance_list.append((dist, parasite, match_indices[i_cand]))
+            else: pass
 
             if distance_list != []:
                 nearest_para = min(distance_list, key=lambda x: x[0])
-                parasite_list.append(nearest_para[1]["parasite"])
-                parasite_index.append(nearest_para[1]["indexes"])
-                
-        if (["Meloidogyne chitwoodi"] in parasite_list) or (["Meloidogyne fallax"] in parasite_list):
-            parasite_list+= [["Meloidogyne chitwoodi"], ["Meloidogyne fallax"]]
-        if (["Globodera pallida"]) in parasite_list or (["Globodera rostochiensis"] in parasite_list):
-            parasite_list+= [["Globodera pallida"], ["Globodera rostochiensis"]]
-            
-        clean_para_list = []
-        for para in parasite_list:
-            if para not in clean_para_list:
-                clean_para_list.append(para)
-                
-        res_dict["sequences"]  = clean_para_list
-        res_dict["indexes"] = parasite_index
-        OCRs_and_candidates_list.append(res_dict)
-    return OCRs_and_candidates_list    
+                check_parasite.append(nearest_para[1])
+                parasite_indices.append(nearest_para[2])
 
-def common_mistake_filter(OCRs_and_candidates, zone):      
-    clean_OCRs_and_candidates = []
-    for candidate_dict in OCRs_and_candidates:
-        res_seq, res_index = [], []
-        sequences, indexes = candidate_dict["sequences"], candidate_dict["indexes"]
-        for sequence, index in zip(sequences, indexes):
-            to_del = []
-            for i, word in enumerate(sequence):
-                if word in ["", " "]:
-                    to_del.append(i)
-                if ":" in word:
-                    if word[0] != ":":
-                        p = word.index(":")
-                        if word[p-1] != " ":
-                            sequence[i] = word.replace(":", " :")
-                if "," in word:
-                    p = word.index(",")
-                    num = [str(i) for i in range(10)]
-                    if p-1>0 and p+1<len(word)-1:
-                        if word[p-1] and word[p+1] in num:
-                            sequence[i] = word.replace(",",".")
-                if i>0: # Filter by confidance
-                    Pi0 = candidate_dict["OCR"]["conf"][index[i]]
-                    if Pi0 <0: # Delete very unreliable word          
-                        to_del.append(i)
-                    if len(word)==1 : # Delete single word 
-                        if candidate_dict["OCR"]["conf"][index[i-1]] - Pi0 > 35 and Pi0 < 55: # Delete confidence drop 
-                            if i == len(sequence)-1:
-                                to_del.append(i)
-                            elif abs(candidate_dict["OCR"]["conf"][index[i+1]] - Pi0) > 10: # delete last word
-                                to_del.append(i)
-                            
-                if zone == "nom":
-                    if word.lower()[:5] == "eurof":
-                        sequence = sequence[:i]
-                        index = index[:i]
-                        break
-                    
-            new_sequence, new_index = [word for i, word in enumerate(sequence) if i not in to_del], [id for i, id in enumerate(index) if i not in to_del]
-            res_seq.append(new_sequence)
-            res_index.append(new_index)
-        candidate_dict["sequences"], candidate_dict["indexes"] = res_seq, res_index
-        clean_OCRs_and_candidates.append(candidate_dict)
-    return clean_OCRs_and_candidates
-
-def select_text(OCRs_and_candidates, zone): # Very case by case function ; COULD BE IMPROVE WITH RECURSIVITY
-    final_OCRs_and_text_dict = []
-    final_text_list, proba_text_list = [], []
-    wordstrip = ' "|\_!§<>{}—;‘’'
-    lstrip = "=-,°'“*§:/ .])"
-    rstrip = "= -,°'“*§:/ (["
-    found_box = []
-    for candidate_dict in OCRs_and_candidates: # Agregate sequence as string and parse multi response per dict as single response (rare case)
-        if candidate_dict["type"] == "found":
-            found_box = candidate_dict["box"]
-        if found_box != [] and candidate_dict["type"] != "found":
-            candidate_dict["box"] = found_box 
-            candidate_dict["type"] = "replaced_found"
-        if candidate_dict["sequences"] == [] and not [] in final_text_list:
-            final_text_list.append([])
-            final_OCRs_and_text_dict.append(candidate_dict)
-        if zone == "parasite_recherche":
-            candidate_dict["choice"] = "parasite_list"
-            return candidate_dict
-        else : 
-            # Get sequence as simple string ON A LIST (not as a list of strings)
-            for sequence, index in zip(candidate_dict["sequences"], candidate_dict["indexes"]):
-                res_seq, res_index = [], []
-                res_dict = deepcopy(candidate_dict)
-                if type(sequence) == type([]): # The only one elmnt is a list -> Make a single string
-                    kept_i = [i for i in range(len(sequence)) if sequence[i] not in wordstrip] # Select non-wordstrip indices only
-                    res_seq = [" ".join([sequence[i].strip(" ") for i in kept_i]).strip(wordstrip).lstrip(lstrip).rstrip(rstrip)]
-                    res_index = [index[i] for i in kept_i]
-                elif type(sequence) == type(""): # The only one element is a string -> Take it
-                    res_seq = [sequence.strip(wordstrip)]
-                    res_index = index
-                else :
-                    print("rare case")
-                    res_seq = [sequence]
-                    res_index = index
-                    
-                if res_seq in final_text_list: # If the sequence has already been seen return the dict
-                    res_dict["choice"] = "Two times the same sequence"
-                    res_dict["sequences"], res_dict["indexes"] = res_seq, res_index
-                    return res_dict
-                proba = [candidate_dict["OCR"]["conf"][i] for i in res_index]
-                res_dict["sequences"], res_dict["indexes"] = res_seq, res_index
-                if len(proba)>0:
-                    proba_text_list.append(sum(proba)/len(proba))
-                else : proba_text_list.append(0)  
-                final_text_list.append(res_seq)
-                final_OCRs_and_text_dict.append(res_dict)
-            
-    if final_text_list == [[]]: # No response
-        final_OCRs_and_text_dict[0]["choice"] = "empty"
-        return final_OCRs_and_text_dict[0]
-    if len(final_OCRs_and_text_dict) == 1: # One non-null res
-        final_OCRs_and_text_dict[0]["choice"] = "one choice"
-        return final_OCRs_and_text_dict[0]
-    
-    sorted_by_proba = sorted(zip(proba_text_list, final_OCRs_and_text_dict), key=lambda x: x[0], reverse=True) # Return the best result according to the OCR prboability
-    conf, final_dict = zip(*sorted_by_proba)
-    final_dict = final_dict[0]
-    final_dict["choice"] = f"Best confidance {conf}"
-    return final_dict
-
-def get_wanted_text(cropped_image, landmarks_dict, format, JSON_HELPER=OCR_HELPER, ocr_config=TESSCONFIG):
-    res_dict_per_zone = {}
-    for zone, key_points in JSON_HELPER[format].items():
-        landmark_boxes =  landmarks_dict[zone]["landmark"]
-        conditions =  key_points["conditions"]
-        
-        if (format, zone) == ("check", "type_lot"):
-            checkbox_dict = JSON_HELPER["checkbox"][format][zone]
-            candidate_OCR_list_filtered =  get_checkbox_check_format(format, checkbox_dict, cropped_image, landmark_boxes, key_points["relative_position"])
-            
+    clean_para_list, clean_indicies = [], []
+    for i_para, para in enumerate(check_parasite):
+        if para in ["Meloidogyne chitwoodi", "Meloidogyne fallax"]:
+            clean_para_list+= ["Meloidogyne chitwoodi", "Meloidogyne fallax"]
+            clean_indicies+= [parasite_indices[i_para], parasite_indices[i_para]]
+        if para in ["Globodera pallida", "Globodera rostochiensis"]:
+            clean_para_list+= ["Globodera pallida", "Globodera rostochiensis"]
+            clean_indicies+= [parasite_indices[i_para], parasite_indices[i_para]]
         else:
-            if zone == "N_d_echantillon": ocr_config[2] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-            else : ocr_config[2] = whitelist
-            candidate_OCR_list = get_candidate_local_OCR(cropped_image, landmark_boxes, key_points["relative_position"], format, ocr_config=ocr_config)
-            candidate_OCR_list_filtered = condition_filter(candidate_OCR_list, key_points["key_sentences"], conditions)
-        clean_OCRs_and_candidates = common_mistake_filter(candidate_OCR_list_filtered, zone)
-     
+            clean_para_list+= [para]
+            clean_indicies+= [parasite_indices[i_para]]
+    
+    clean_para_list, clean_indicies = list(set(clean_para_list)), list(set(clean_indicies))
+                
+    return clean_indicies, clean_para_list          
+
+def _post_extraction_cleaning(text):
+
+    if text == "PAYS BAS":
+        text = "PAYS-BAS"
+    if "Ö" in text:
+        text = text.replace("Ö", "")
+    if "Ä" in text:
+        text = text.replace("Ä", "A")
+    if "SARL" in text:
+        text = text.replace("SARL", "SARL ")
+    if "EARL" in text:
+        text = text.replace("EARL", "EARL ")
+    if "SCEA" in text:
+        text = text.replace("SCEA", "SCEA ")
+
+    if "  " in text:
+        text = text.replace("  ", " ")
+    
+    return text
+
+def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=OCR_HELPER, local=False):
+    zone_matches = {}
+    for zone, key_points in JSON_HELPER[format].items():
+        key_match =  zone_key_match_dict[zone]
+        i_key, box = key_match.key_index,  key_match.OCR["box"]
+        condition, relative_position = key_points["conditions"], key_points["relative_position"][i_key]
+        xmin, ymin, xmax, ymax = box if key_match.confidence==-1 else get_area(cropped_image, box, relative_position, corr_ratio=1.15)
+        # print(box, key_match.confidence, (xmin, ymin, xmax, ymax))
+        # plt.imshow(cropped_image[ymin:ymax, xmin:xmax])
+        # plt.show()
+        
+        candidate_dicts = [dict_sequence for dict_sequence in full_img_OCR if 
+                      (xmin<dict_sequence["box"][0]<xmax) and (ymin<dict_sequence["box"][1]<ymax)]
+        
+        # for d in candidate_dicts:
+        #     print(d["text"])
+                
+        zone_match = ZoneMatch(candidate_dicts, [], 0, [])
+
+        if (format, zone) == ("check", "type_lot"):
+            # For now, SORE by default
+            match_indices, res_seq = [0], ["SORE"]
+                
+        else :
+            match_indices, res_seq = condition_filter(candidate_dicts, condition)
+
         if (format, zone) == ("table", "parasite_recherche"):
             checkbox_dict = JSON_HELPER["checkbox"][format][zone]
-            clean_OCRs_and_candidates = get_checkbox_table_format(checkbox_dict, clean_OCRs_and_candidates, cropped_image)
+            yshift = ymin
+            match_indices, res_seq = get_checkbox_table_format(checkbox_dict, res_seq, match_indices, candidate_dicts, cropped_image[ymin:ymax, xmin:xmax], yshift)
 
-        OCR_and_text_full_dict = select_text(clean_OCRs_and_candidates, zone) # Normalize and process condition text (ex : Somes are simple lists other lists of lists...)            
+        zone_match.match_indices , zone_match.res_seq = match_indices, res_seq
+        zone_match.confidence = min([candidate_dicts[i]["proba"] for i in zone_match.match_indices]) if zone_match.match_indices else 0
+
+        if zone != "parasite_recherche":
+            res_seq = " ".join(zone_match.res_seq).upper().strip(",_( ").lstrip(" ._-!*:-")
+            zone_match.res_seq = _post_extraction_cleaning(res_seq)
+
+        print(zone, " : ", zone_match.res_seq)
+
+        zone_matches[zone] = {
+                "sequence" : zone_match.res_seq,
+                "confidence" : float(zone_match.confidence),
+                "area" : (int(xmin), int(ymin), int(xmax), int(ymax)),
+                "format" : format
+            }
+
+    return zone_matches 
+
+def textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER):
+    """
+    The main fonction to extract text from FDA
+
+    Returns:
+        zone_matches (dict) : { zone : {
+                                    "sequence": ,
+                                    "confidence": ,
+                                    "area": }
+        }
+    """
+    zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, cropped_image)
+    zone_matches = get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER)
+    
+    # for zone, res_dict in zone_matches.items():
+    #     if not res_dict["sequence"]:
+    #         NEW_HELPER = deepcopy(OCR_HELPER)
+    #         xmin, ymin, xmax, ymax = res_dict["area"]
+    #         NEW_HELPER[format] = {zone : JSON_HELPER[format][zone]}
+    #         local_cropped_image = cropped_image[ymin:ymax, xmin:xmax]
+    #         zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, local_cropped_image, JSON_HELPER=NEW_HELPER)
+    #         new_zone_matches = get_wanted_text(local_cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=NEW_HELPER)
+    #         zone_matches.update(new_zone_matches)
+
+    # Backup in case format is wrongly assigate
+    non_empty_field = 0
+    for _, value_dict in zone_matches.items():
+        if value_dict["sequence"] != []:
+            non_empty_field+=1
+    
+    if format == "table" and non_empty_field < 2: 
+        format = "hand"
+        zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, cropped_image)
+        zone_matches = get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=JSON_HELPER)
         
-        if OCR_and_text_full_dict["sequences"] != [] and zone != "parasite_recherche":
-            OCR_and_text_full_dict["sequences"] =  OCR_and_text_full_dict["sequences"][0] # extract the value
-        if OCR_and_text_full_dict["indexes"] != [] :
-            if type(OCR_and_text_full_dict["indexes"][0]) == type([]):
-                OCR_and_text_full_dict["indexes"] = OCR_and_text_full_dict["indexes"][0]
-        print(zone, " : ", OCR_and_text_full_dict["sequences"])
-        res_dict_per_zone[zone] = OCR_and_text_full_dict
-    return res_dict_per_zone 
-
+    return zone_matches
+            
 if __name__ == "__main__":
+    from ProcessCheckboxes import  Template
+    from ProcessPDF import PDF_to_images, binarized_image, get_rectangles, get_format_and_adjusted_image
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan1.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan11.pdf"
     images = PDF_to_images(path)
-    images = images[0:]
+    start = 0
+    images = images[4:]
     res_dict_per_image = {}
-    for i, image in enumerate(images,1):
+    for i, image in enumerate(images,start+1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")
-        processed_image = binarized_image(image)
-        format, cropped_image, _ = crop_image_and_sort_format(processed_image, original_image=image, show=False)
-        # plt.imshow(cropped_image)
-        # plt.show()
+        bin_image = binarized_image(image)
+        rectangles = get_rectangles(bin_image)
+        format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, image)
         print(f"Image with format : {format} is cropped.")
-        OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image)
-        print(f"Landmarks are found.")
-        landmark_and_text_dict = get_wanted_text(cropped_image, landmarks_dict, format)
-        
-        non_empty_field = 0
-        for _, value_dict in landmark_and_text_dict.items():
-            if value_dict["sequences"] != []:
-                non_empty_field+=1
-                
-        print(non_empty_field)
-        if format == "table" and non_empty_field < 2:
-            format = "hand"
-            OCR_data, landmarks_dict = get_data_and_landmarks(format, cropped_image)
-            landmark_and_text_dict = get_wanted_text(cropped_image, landmarks_dict, format)
-            
-        res_dict_per_image[i] = landmark_and_text_dict
-    
+        textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER)
