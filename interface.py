@@ -29,7 +29,7 @@ def fit_the_screen(X_loc):
         if X_loc<x+width:
             return int(0.95*width), int(0.95*height)
 
-def use_the_tool(folderPath, def_format="default"):
+def use_the_tool(folderPath, def_format=""):
     images_names, res_dict_per_image, images = TextCVTool(folderPath, def_format=def_format)
     return images_names, res_dict_per_image, images
 
@@ -394,11 +394,10 @@ def main():
                         welcomWindow.close()
                         print("------ START -----")
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
-                        def_format = "landscape" if values["landscape"] else "default"
+                        def_format = "landscape" if values["landscape"] else ""
                         images_names, res_dict_per_image, images = use_the_tool(givenPath, def_format=def_format)
                         print("------ DONE -----")
                         with open(save_path_json, 'w', encoding='utf-8') as json_file:
-                            print(res_dict_per_image)
                             json.dump(res_dict_per_image, json_file,  ensure_ascii=False) # Save the extraction json on RES
                         if os.path.exists(xml_res_path): # Create or overwrite the verified_XML folder in RES
                             shutil.rmtree(xml_res_path)

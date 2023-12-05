@@ -584,6 +584,9 @@ def _post_extraction_cleaning(text):
 
     if "  " in text:
         text = text.replace("  ", " ")
+
+    if "EUROFINS" in text:
+        text = text.split("EUROFINS")[0]
     
     return text
 
@@ -600,9 +603,6 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
         
         candidate_dicts = [dict_sequence for dict_sequence in full_img_OCR if 
                       (xmin<dict_sequence["box"][0]<xmax) and (ymin<dict_sequence["box"][1]<ymax)]
-        
-        # for d in candidate_dicts:
-        #     print(d["text"])
                 
         zone_match = ZoneMatch(candidate_dicts, [], 0, [])
 
@@ -622,7 +622,7 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
         zone_match.confidence = min([candidate_dicts[i]["proba"] for i in zone_match.match_indices]) if zone_match.match_indices else 0
 
         if zone != "parasite_recherche":
-            res_seq = " ".join(zone_match.res_seq).upper().strip(",_( ").lstrip(" ._-!*:-")
+            res_seq = " ".join(zone_match.res_seq).upper().strip(",_( ").lstrip(" ._-!*:-").strip(" ")
             zone_match.res_seq = _post_extraction_cleaning(res_seq)
 
         print(zone, " : ", zone_match.res_seq)

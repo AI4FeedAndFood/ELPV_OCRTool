@@ -61,7 +61,7 @@
         "nom" : {
             "subregion" : [[0.15, 0.35], [0, 0.47]],
             "key_sentences" : [["31", "NOM"], ["3", "Identification", "du", "producteur", "ou", "du", "beneficiaire"]],
-            "relative_position" : [[[-0.2,3.5], [-0.1,4.5]], [[1,4], [-0.1,0.9]]],
+            "relative_position" : [[[-0.2,3], [-0.1,3.5]], [[1,4], [-0.1,0.8]]],
             "conditions" : ["after_key", [["31", "NOM", "(*)"], ["32", "ADRESSE"]]]
         },
         "type_lot" : {
@@ -124,7 +124,7 @@
         "nom" : {
             "subregion" : [[0.2, 0.4], [0, 0.45]],
             "key_sentences" : [["31", "NOM"], ["3", "Identification", "du", "producteur", "ou", "du", "beneficiaire"]],
-            "relative_position" : [[[-0.3,3.5], [-0.1,4.5]], [[1,4], [-0.1,0.7]]],
+            "relative_position" : [[[-0.3,3.5], [-0.1,3.5]], [[1,4], [-0.1,0.8]]],
             "conditions" : ["after_key",  [["31", "NOM", "(*)"], ["32", "ADRESSE"]]]
         },
         "type_lot" : {

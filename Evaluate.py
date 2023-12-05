@@ -18,18 +18,10 @@ def _condition_fuction(col, proposition, data):
     if col == "parasite_recherche":
         data = data.strip('][').split(', ')
         proposition = proposition.strip('][').split(', ')
-        count = 0
-        data = [d.strip("[]") for d in data]
-        for GT_parasite in data:
-            if GT_parasite not in proposition:
-                count+=1
-        if count == 0:
+        if len(proposition) == len(data):
             return 2
-        elif count == 1:
-            return 1
-        else:
-            return 0
-        
+        else: return 0
+                
     else:
         proposition = str(proposition).lower()
         data = str(data).lower()
