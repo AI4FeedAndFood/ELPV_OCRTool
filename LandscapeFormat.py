@@ -291,11 +291,11 @@ def ProcessLandscape(image):
     # plt.imshow(image)
     # plt.show()
     dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
-    min_dot_y, max_dot_y = min(dots, key=lambda x: x[1])[1], max(dots, key=lambda x: x[1])[1]
-    Y,X = processed_image.shape[:2]
     if dots == []:
         print("No dot")
         return {}
+    min_dot_y, max_dot_y = min(dots, key=lambda x: x[1])[1], max(dots, key=lambda x: x[1])[1]
+    Y,X = processed_image.shape[:2]
     # Find lines in the scan
     vertical_lines = HoughLines(processed_image)
     # Delete lines that are not from the table

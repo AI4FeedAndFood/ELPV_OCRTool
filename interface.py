@@ -376,11 +376,10 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
     num = 0
     VerificactionLayout_add = MainLayout
     VerificationWindow_add = sg.Window(f"Fiche {image_name_add}", 
-                                VerificactionLayout_add, use_custom_titlebar=True, location=(X_loc+30, Y_loc-20), 
-                                size=(X_dim, Y_dim), resizable=True, finalize=True)
+                                VerificactionLayout_add, use_custom_titlebar=True, location=(X_loc+30, Y_loc), 
+                                size=(X_dim, Y_dim), resizable=True, finalize=True, )
     while True:
         add_windows, verif_event_add, verif_values_add = sg.read_all_windows()
-        print(verif_event_add, verif_values_add)
         if verif_event_add == sg.WINDOW_CLOSED:
             return None, None, None
 
@@ -406,10 +405,9 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
                 while image_name_add_num in list(verified_dict.keys()):
                     image_name_add_num = image_name_add + str(num)
                     num+=1
-                verified_dict[image_name_add_num] = verif_values_add
                 VerificationWindow_add.close()
 
-                return verified_dict, image_name_add_num, n_copy
+                return verif_values_add, image_name_add_num, n_copy
                 # If last image
 
 def main():
@@ -544,14 +542,17 @@ def main():
                                                 break
 
                                 if verif_event == "Ajouter une commande manuellement":
-                                    VerificationWindow.Hide()
+                                    VerificationWindow.Disable()
+                                    VerificationWindow.SetAlpha(0.5)
                                     new_CONTRACT_LIST = CONTRACT_LIST_0
                                     addLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info, landscape=values["landscape"], add=True)
                                     verif_values_add, image_name_add, n_copy = manually_add_order(addLayout, verified_dict, image_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
                                     if verif_values_add:
+                                        verified_dict[image_name_add] = verif_values_add
                                         res_dict_per_image["RESPONSE"][image_name_add] = deepcopy(image_dict)
                                         runningSave(save_path_json, verif_values_add, image_name_add, res_dict_per_image, n_copy)
-                                    VerificationWindow.UnHide()
+                                    VerificationWindow.Enable()
+                                    VerificationWindow.SetAlpha(1)
                                     
 
                                 if verif_event == "<- Retour":

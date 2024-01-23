@@ -84,8 +84,9 @@ def get_rectangles(bin_image, kernel_size=(3,3)):
                 break
         if not overlap_found:
             filtered_rects.append(rect)
-
-    rectangles =  [list(rect) for rect in filtered_rects if rect[1][0]>0.5*x and rect[1][1]>0.05*y]
+            
+    h, H = sorted([x,y])
+    rectangles =  [list(rect) for rect in filtered_rects if ((rect[1][0]>0.5*H and rect[1][1]>0.05*h) or (rect[1][0]>0.05*h and rect[1][1]>0.5*H))]
     
     return rectangles
 
@@ -167,8 +168,12 @@ def get_rect_by_format(bin_image, rectangles, format=""):
         return (xy, wh, rot)
     
     y,x = bin_image.shape
+    if len(rectangles) == 0:
+        return ((0,0), (x,y), 0)
+
     if len(rectangles)>2: # Clean if there is a black border of the scan wich is concider as a contour
-        rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]        
+        rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]
+    
     rectangle = _process_table_rectangles(rectangles, format)
 
     return rectangle
@@ -303,9 +308,3 @@ def agglomerate_lines(lines_list, mode = "vertical"):
 if __name__ == "__main__":
 
     print("No")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan7.pdf"
-    images = PDF_to_images(path)
-    images = images[0:]
-    for im in images:
-        bin_image = binarized_image(im)
-        rect = get_rectangles(bin_image)
