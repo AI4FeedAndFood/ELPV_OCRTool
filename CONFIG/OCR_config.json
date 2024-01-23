@@ -227,7 +227,7 @@
         },
         "nom" : {
             "subregion" : [[0.35, 1], [0.08, 0.25]],
-            "key_sentences" : [["N° identification", "du"], ["producteur", "de", "la", "culture"]],
+            "key_sentences" : [["N° identification"], ["producteur", "culture"]],
             "relative_position" : [[[1,100], [-3,3]]],
             "merged" : 1,
             "theorical_col" : [0.1, 0.25],

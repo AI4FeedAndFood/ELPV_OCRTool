@@ -2,7 +2,7 @@ import numpy as np
 import json
 import cv2
 import matplotlib.pyplot as plt
-
+from copy import deepcopy
 
 import locale
 locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
@@ -54,13 +54,13 @@ class Point:
         self.res_dict = {}
 
 def HSV_image(image):
-    blurred = cv2.GaussianBlur(image, (23,23), 0)
+    blurred = cv2.GaussianBlur(image, (11,11), 0)
     HSV_image = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
     return HSV_image
 
 def _postprecess_mask(mask):
-    mask = cv2.erode(mask, None, iterations=4)
-    mask = cv2.dilate(mask, None, iterations=4)
+    mask = cv2.erode(mask, None, iterations=2)
+    mask = cv2.dilate(mask, None, iterations=2)
     return mask
 
 def get_contours(image, conditions_dictionnary):
@@ -122,6 +122,7 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     # Binarized then delete dots
     cropped_image = binarized_image(cropped_image)
     cropped_image[mask == 255] = 255
+
     dots = get_bounding_boxes(contours)
     if dots == []:
         print("PAS DE POINT TROUVE")
@@ -133,11 +134,10 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     # Apply the rotation for image and dots according to the orientation
     Yc, Xc = cropped_image.shape[:2]
     k_90 = 3
-    if centers[0][1]<Yc/2: # Dots indicates if the paper is from top to bottom or bottom to top
+    if centers[0][1]<Yc/8: # Dots indicates if the paper is from top to bottom or bottom to top
         k_90 = 1
     elif Yc<Xc:
         k_90=0
-
     # Apply the crop and rotate to centers
     # angle = angle if inv else -angle
     M_after_crop = cv2.getRotationMatrix2D((0,0), -90*k_90, 1) # Rotation matrix for centers       
@@ -207,6 +207,43 @@ def delete_HoughLines(image, lines, show=False):
         
     return img
 
+def split_with_line(vertical_lines, OCR):
+    """Split a text box in two boxes if a vertical line pass trough the box.
+    Split the box at the lin position and the text at a space.
+
+    Args:
+        vertical_lines
+        full_img_OCR (list of dict)
+    """
+    def _res_loop(vertical_lines, dict_seq):
+        text = dict_seq["text"]
+        for line in vertical_lines:
+            if xmin+w/6<line[0][0]<xmin+w*5/6: # The line split the box around the middle its middle
+                join_text = " ".join(text)
+                frac_space = [i/(len(join_text)-1) for i, el in enumerate(join_text) if el==" "]
+                frac_line = (line[0][0]-xmin)/(xmax-xmin)
+                i_split = int(min(frac_space, key=lambda x: abs(x-frac_line)) * len(join_text))
+                res1 = deepcopy(dict_seq)
+                res1["text"] =  [join_text[:i_split+1].strip(" :,'")]
+                res1["box"] = [xmin, ymin, line[0][0]-2, ymax]
+                res2 = deepcopy(dict_seq)
+                res2["text"] =  [join_text[i_split+1:].strip(" :,'")]
+                res2["box"] = [line[0][0]+2, ymin, xmax, ymax]
+                return [res1, res2]
+            
+        return [dict_seq]
+
+    res_ocr = []
+    for dict_seq in OCR:
+        xmin, ymin, xmax, ymax = dict_seq["box"]
+        w = xmax-xmin
+        if len(dict_seq["text"])>1:
+            res_ocr += _res_loop(vertical_lines, dict_seq)
+        else:
+            res_ocr.append(dict_seq)
+
+    return res_ocr
+
 def get_frame_lines(position, lines , mode="vertical", var_match=False):
     """
     Get the "mode" line that frame the object of position "position"
@@ -231,10 +268,13 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
     return first_line, second_line    
 
 def text_cell(full_OCR, cell_box, column):
-    x,y,w,h = cell_box
-    xmin,ymin,xmax,ymax = x, y, x+w, y+h
-    candidate_dicts = [dict_sequence for dict_sequence in full_OCR if 
-                      (xmin<(dict_sequence["box"][0]+dict_sequence["box"][2])/2<xmax) and (ymin<(dict_sequence["box"][1]+dict_sequence["box"][3])/2<ymax)]
+    def _get_candidate(full_OCR):
+        candidate_dicts = [dict_sequence for dict_sequence in full_OCR if 
+                      (xmin<(dict_sequence["box"][0]+dict_sequence["box"][2])*0.5<xmax) and (ymin<dict_sequence["box"][1]<ymax)]
+        return candidate_dicts
+    
+    xmin,ymin,xmax,ymax = cell_box
+    candidate_dicts = _get_candidate(full_OCR)
     match_indices, res_seq = condition_filter(candidate_dicts, column.dict["conditions"])
     conf = min([candidate_dicts[i]["proba"] for i in match_indices]) if match_indices else 0
     zone_match = ZoneMatch(candidate_dicts, match_indices, conf, res_seq)
@@ -243,11 +283,15 @@ def text_cell(full_OCR, cell_box, column):
         zone_match.res_seq = " ".join(zone_match.res_seq).upper().lstrip(" ._-!*:-")
     if zone_match.res_seq == "PAYS BAS":
         zone_match.res_seq = "PAYS-BAS"
+
     return zone_match
     
 def ProcessLandscape(image):
     # Find dots in the scan and the flip&croped image
+    # plt.imshow(image)
+    # plt.show()
     dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
+    min_dot_y, max_dot_y = min(dots, key=lambda x: x[1])[1], max(dots, key=lambda x: x[1])[1]
     Y,X = processed_image.shape[:2]
     if dots == []:
         print("No dot")
@@ -265,6 +309,9 @@ def ProcessLandscape(image):
     # delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"], show=True)
     # Find columns header
     zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, processed_image)
+    # Now let's concider text around dots
+    full_img_OCR = [seq for seq in full_img_OCR if min_dot_y-100<(seq["box"][1]+seq["box"][3])/2<max_dot_y+100]
+    full_img_OCR = split_with_line(vertical_lines, full_img_OCR)
     # Get columns frame vertical lines
     columns = []
     for zone, key_points in OCR_HELPER[format].items():
@@ -303,8 +350,7 @@ def ProcessLandscape(image):
                     lower_frame.append(lower_merge)
                 upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
                 lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
-            cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,w,h
-            
+            cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,x2,y2
             # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
             zone_match = text_cell(full_img_OCR, cell_box, column=col)
 
@@ -324,6 +370,6 @@ def ProcessLandscape(image):
                 "format" : format
             }
         
-        landscape_dict_res[f"point_{i_point}_k90_{k_90}"] = res_dict_per_zone
+        landscape_dict_res[f"k90_{k_90}_point_{i_point}"] = res_dict_per_zone
 
     return landscape_dict_res

@@ -75,10 +75,6 @@ def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
         rectangles = get_rectangles(bin_image)
         format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, image, input_format=def_format)
 
-        # print(format)
-        # plt.imshow(cropped_image)
-        # plt.show()
-
         if format == "landscape":
             landscape_dict_res = ProcessLandscape(cropped_image)
             for dict_name, landscape_dict in landscape_dict_res.items():
@@ -100,4 +96,4 @@ if __name__ == "__main__":
     
     print("start")
     path = r"C:\Users\CF6P\Desktop\ELPV\Data\debug"
-    TextCVTool(path)
+    TextCVTool(path, def_format="landscape")

@@ -43,7 +43,7 @@ def checkboxs_for_parasite(parasite_list, found_parasites):
         not_found_col.append([sg.Checkbox(str(fpara), key=f"para_{str(fpara)}")])
     return found_col, not_found_col
 
-def _getFieldsLayout(image_dict, X_dim, Y_dim):
+def _getFieldsLayout(image_dict, X_dim, Y_dim, landscape=False):
     conversion_dict = LIMSsettings["CLEAN_ZONE"]
     conf_threshold = int(GUIsettings["TOOL"]["confidence_threshold"])/100   
     lineLayout = []
@@ -89,7 +89,11 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim):
                                 key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='left')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
     # Combo for Reference Echantillon
-    default_ref = "Tubercule" if image_dict["variete"]["sequence"] != [] else "Sol"
+    if (image_dict["variete"]["sequence"] == []) or landscape:
+        default_ref = "Sol"  
+    else: 
+        default_ref = "Tubercule"
+        
     if "ref_echantillon" in list(image_dict.keys()):
         default_ref = image_dict["ref_echantillon"]["sequence"]
     line = [sg.Text("Référence échantillon : ", s=(25,1)),
@@ -151,13 +155,24 @@ def ContractSuggestionWindow(values, mainWindow):
     return sg.Window('Title', layout, no_titlebar=True, keep_on_top=True,
         location=(x, y), margins=(0, 0), finalize=True)
 
-def getMainLayout(image_dict, image, X_dim, Y_dim, last_info):
-    FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim), _getImageLayout(image), _getClientContractLayout(image_dict, last_info)
+def getMainLayout(image_dict, image, X_dim, Y_dim, last_info, landscape=False, add=False):
+    FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim, landscape=landscape), _getImageLayout(image), _getClientContractLayout(image_dict, last_info)
     n_copy = image_dict["n_copy"] if "n_copy" in list(image_dict.keys()) else 1
     MainLayout = [
         [sg.Text("Attention : Veuillez bien vérifier les champs proposés"), sg.Push(), sg.Button("Consignes d'utilisation", k="-consignes-")],
         [sg.Push(), 
          sg.B("<- Retour", s=10), sg.B("Valider ->", s=10), 
+         sg.T("Nombre de copie total : "), sg.I(str(n_copy), key='n_copy', size=(3,1), justification='right'),
+         sg.B("Ajouter une commande manuellement", s=10, size=(35, 1)),
+         sg.Push()]
+    ]
+
+    if add:
+        MainLayout = [
+        [sg.Push(), sg.Text("AJOUT MANUEL", font=("Helvetica", 36, "bold")), sg.Push()],
+        [sg.Text("Attention : Veuillez bien vérifier les champs proposés"), sg.Push()],
+        [sg.Push(), 
+         sg.B("Valider ->", s=10), 
          sg.T("Nombre de copie total : "), sg.I(str(n_copy), key='n_copy', size=(3,1), justification='right'),
          sg.Push()]
     ]
@@ -179,14 +194,16 @@ def choice_overwrite_continue_popup(general_text, red_text, green_text):
 
 def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, VerificationWindow, ClientSuggestionW, contractSuggestionW):
     if verif_event == "-client_name-":
-            client_text = verif_values["-client_name-"]
-            client_sugg = sorted([client for client in CLIENT_LIST if client_text.lower() in client.lower()])
-            if client_text and client_sugg:
-                if ClientSuggestionW :
-                    ClientSuggestionW["-AUTO_CLIENT-"].update(values=client_sugg)
-                    ClientSuggestionW.refresh()
-                elif len(client_text)>2 :
-                    ClientSuggestionW = ClientSuggestionWindow(client_sugg, VerificationWindow)                
+        client_text = verif_values["-client_name-"]
+        client_sugg = sorted([client for client in CLIENT_LIST if client_text.lower() in client.lower()])
+        if client_text and client_sugg:
+            if ClientSuggestionW :
+                ClientSuggestionW.BringToFront()
+                ClientSuggestionW["-AUTO_CLIENT-"].update(values=client_sugg)
+                ClientSuggestionW.refresh()
+            elif len(client_text)>2 :
+                ClientSuggestionW = ClientSuggestionWindow(client_sugg, VerificationWindow)
+                ClientSuggestionW.BringToFront()              
                                                                 
     if verif_event == '-AUTO_CLIENT-':
         ClientSuggestionW.close()
@@ -203,10 +220,13 @@ def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, Ver
         contract_sugg = [contract for contract in CONTRACT_LIST if contract_text.lower() in contract.lower()]
         if contract_text and contract_sugg:
             if contractSuggestionW :
+                contractSuggestionW.BringToFront()
                 contractSuggestionW["-AUTO_CONTRACT-"].update(values=contract_sugg)
                 contractSuggestionW.refresh()
             else :
-                contractSuggestionW = ContractSuggestionWindow(contract_sugg, VerificationWindow)                                                                                   
+                contractSuggestionW = ContractSuggestionWindow(contract_sugg, VerificationWindow)
+                contractSuggestionW.BringToFront()
+
     if verif_event == '-AUTO_CONTRACT-':
         contractSuggestionW.close()
         contractSuggestionW = False
@@ -340,7 +360,7 @@ def get_images_and_adapt_landscape(images_names_dict, images, images_names):
     for i, name in enumerate(images_names):
         loc_im = [images[i]]
         loc_name = [name]
-        point_names = [point for point in images_names_dict if name+"_"+"point" in point]
+        point_names = [point for point in images_names_dict if (name in point) and ("point" in point)]
         if point_names != []:
             loc_name = point_names
             loc_im = [images[i] for k in point_names]
@@ -348,6 +368,49 @@ def get_images_and_adapt_landscape(images_names_dict, images, images_names):
         res_names += loc_name
         
     return res_images, res_names          
+
+def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim):
+    ClientSuggestionW_add, contractSuggestionW_add = None, None
+    client_warning=False
+    image_name_add = image_name+"_ajout_main_"
+    num = 0
+    VerificactionLayout_add = MainLayout
+    VerificationWindow_add = sg.Window(f"Fiche {image_name_add}", 
+                                VerificactionLayout_add, use_custom_titlebar=True, location=(X_loc+30, Y_loc-20), 
+                                size=(X_dim, Y_dim), resizable=True, finalize=True)
+    while True:
+        add_windows, verif_event_add, verif_values_add = sg.read_all_windows()
+        print(verif_event_add, verif_values_add)
+        if verif_event_add == sg.WINDOW_CLOSED:
+            return None, None, None
+
+        if verif_event_add in ["-client_name-", '-AUTO_CLIENT-', "-contract_name-", '-AUTO_CONTRACT-']:
+            processed_add = process_contract_client_action(verif_event_add, verif_values_add, CONTRACT_LIST, VerificationWindow_add, ClientSuggestionW_add, contractSuggestionW_add)
+            CONTRACT_LIST, verif_event_add, verif_values_add, VerificationWindow_add, ClientSuggestionW_add, contractSuggestionW_add = processed_add
+
+        if verif_event_add == "Valider ->":
+            if contractSuggestionW_add : contractSuggestionW_add.close()
+            if ClientSuggestionW_add : ClientSuggestionW_add.close()
+            if (not verif_values_add["-client_name-"] in CLIENT_LIST or not verif_values_add["-contract_name-"] in CONTRACT_LIST_0) and not client_warning:
+                verif_event_add=None
+                sg.popup_ok("ATTENTION : VEUILLEZ REMPLIR UN CODE CIENT ET UN CODE CONTRAT VALIDE", button_color="dark green", 
+                            location = (X_loc+200, Y_loc+200))
+                client_warning=True
+                copy_status = False
+            # Check "n_copie" format
+            else : n_copy, copy_status = check_n_copy(verif_values_add, X_loc+20, Y_loc)
+
+            if copy_status:
+                # Register the response and go to the following
+                image_name_add_num = image_name_add + str(num)
+                while image_name_add_num in list(verified_dict.keys()):
+                    image_name_add_num = image_name_add + str(num)
+                    num+=1
+                verified_dict[image_name_add_num] = verif_values_add
+                VerificationWindow_add.close()
+
+                return verified_dict, image_name_add_num, n_copy
+                # If last image
 
 def main():
     welcomeLayout = [
@@ -377,7 +440,7 @@ def main():
                     end = False # Force the verification process to be done or abandonned (no infinit loop)
                     if os.path.exists(save_path_json):
                         continue_or_smash = choice_overwrite_continue_popup("Il semblerait que l'analyse ai déjà été effectuée.\nEcraser la précédente analyse ?"
-                                                                   , "Ecraser", "Reprendre la précédente analyse") #Change conditon
+                                                                   , "Ecraser", "Reprendre la précédente analyse") # Change conditon
                     else : continue_or_smash="overwrite"
                     if continue_or_smash==None : pass
                     if continue_or_smash == "continue":
@@ -396,6 +459,7 @@ def main():
                         print("Attendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
                         def_format = "landscape" if values["landscape"] else ""
                         images_names, res_dict_per_image, images = use_the_tool(givenPath, def_format=def_format)
+                        images_names_dict = list(res_dict_per_image["RESPONSE"].keys())
                         print("------ DONE -----")
                         with open(save_path_json, 'w', encoding='utf-8') as json_file:
                             json.dump(res_dict_per_image, json_file,  ensure_ascii=False) # Save the extraction json on RES
@@ -424,12 +488,12 @@ def main():
                                     if start == True :
                                         X_loc, Y_loc = VerificationWindow.current_location()
                                         X_dim, Y_dim = fit_the_screen(10)
-                                    image_name = images_names[n_image]
+                                    image_name = images_names_dict[n_image]
                                     image = images[n_image]
-                                    image = np.rot90(image, int(image_name.split("_")[-1])) if values["landscape"] else image
+                                    image = np.rot90(image, int(image_name[image_name.index("k90_")+len("k90_")])) if values["landscape"] else image # Landscape rota get by the end
                                     image_dict = res_dict_per_image["RESPONSE"][image_name]
-                                    VerificactionLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info)
-                                    if start == True :
+                                    VerificactionLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info, landscape=values["landscape"])
+                                    if start == True:
                                         VerificationWindow.close()
                                     VerificationWindow = sg.Window(f"Fiche {image_name} - ({n_image+1}/{len(images_names)})", 
                                                                 VerificactionLayout, use_custom_titlebar=True, location=(X_loc, Y_loc), 
@@ -471,12 +535,24 @@ def main():
                                         else:
                                             verified_dict[image_name] = verif_values
                                             runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_copy)
-                                            choice = sg.popup_ok("Il n'y a pas d'image suivante. Finir l'analyse ?", button_color="dark green")
+                                            choice = sg.popup_ok(f"Il n'y a pas d'image suivante.\n\n{len(verified_dict)} fichiers vont être générés.\n\nFinir l'analyse ?", 
+                                                                 button_color="dark green")
                                             if choice == "OK":
                                                 json_file.close() # Close the file
                                                 finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, out_path=LIMSsettings["TOOL_PATH"]["output_folder"])
                                                 VerificationWindow.close()
                                                 break
+
+                                if verif_event == "Ajouter une commande manuellement":
+                                    VerificationWindow.Hide()
+                                    new_CONTRACT_LIST = CONTRACT_LIST_0
+                                    addLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info, landscape=values["landscape"], add=True)
+                                    verif_values_add, image_name_add, n_copy = manually_add_order(addLayout, verified_dict, image_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
+                                    if verif_values_add:
+                                        res_dict_per_image["RESPONSE"][image_name_add] = deepcopy(image_dict)
+                                        runningSave(save_path_json, verif_values_add, image_name_add, res_dict_per_image, n_copy)
+                                    VerificationWindow.UnHide()
+                                    
 
                                 if verif_event == "<- Retour":
                                     if n_image>0:

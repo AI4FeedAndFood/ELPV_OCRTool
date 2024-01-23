@@ -64,13 +64,17 @@ def get_rectangles(bin_image, kernel_size=(3,3)):
 
     rectangles = [list(cv2.minAreaRect(contour)) for contour in contours]
 
+    im = bin_image.copy()
+
     filtered_rects = []
     coord = lambda x: [int(x[0][0]-x[1][0]/2), int(x[0][1]-x[1][1]/2), int(x[0][0]+x[1][0]/2), int(x[0][1]+x[1][1]/2)]
     for rect in rectangles:
+        rect=list(rect)
         if 45<rect[-1]: # Normalize to get x,y,w,h in the image refrential
                 rect[1] = (rect[1][1], rect[1][0])
                 rect[-1] = rect[-1]-90
         overlap_found = False
+        
         for f_rect in filtered_rects:
             coord1 = coord(rect)
             coord2 = coord(f_rect)
@@ -80,8 +84,8 @@ def get_rectangles(bin_image, kernel_size=(3,3)):
                 break
         if not overlap_found:
             filtered_rects.append(rect)
-    
-    rectangles =  [list(rect) for rect in rectangles if rect[1][0]>0.66*x and rect[1][1]>0.05*y]  
+
+    rectangles =  [list(rect) for rect in filtered_rects if rect[1][0]>0.5*x and rect[1][1]>0.05*y]
     
     return rectangles
 
@@ -139,11 +143,6 @@ def get_rect_by_format(bin_image, rectangles, format=""):
             elif maxarea < rectangles[i][1][0]*rectangles[i][1][1]:
                 rot = rect[-1] # The rot angle is chosen by taken the biggest rect angle
         
-        xy_wh_rot = [[], [], []]
-        for rect in rectangles:
-            for comp in range(len(rect)):
-                xy_wh_rot[comp].append(rect[comp])
-              
         xmin_xmax_ymin_ymax = []
         for dist_i in [0,1]:
             for sens_j in [0,1]:
@@ -170,7 +169,6 @@ def get_rect_by_format(bin_image, rectangles, format=""):
     y,x = bin_image.shape
     if len(rectangles)>2: # Clean if there is a black border of the scan wich is concider as a contour
         rectangles = [rect for rect in rectangles if not (0<x-rect[1][0]<10 or 0<y-rect[1][0]<10 or 0<x-rect[1][1]<0 or 0<y-rect[1][1]<10)]        
-
     rectangle = _process_table_rectangles(rectangles, format)
 
     return rectangle

@@ -1,6 +1,6 @@
 {
     "TOOL_PATH" : {
-        "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data",
+        "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\debug",
         "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS"
     },
     "CLEAN_ZONE" : {

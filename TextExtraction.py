@@ -18,7 +18,7 @@ from JaroDistance import jaro_distance
 from ProcessCheckboxes import Template, get_checkboxes
 from ProcessPDF import  binarized_image
 
-OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
+OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
 
 lists_df = pd.read_excel(r"CONFIG\\lists.xlsx")
@@ -79,46 +79,20 @@ def paddle_OCR(image):
     results = ocr.ocr(image, cls=True)
     results = _cleanPaddleOCR(results)
     results = _order_by_tbyx(results)
-    return results
 
-def paddle_TABLE(image):
-
-    def _clean_res(resStructure):
-        res = []
-        for type_dict in resStructure:
-            if "table" != type_dict["type"]:
-                for _, res_dict in enumerate(type_dict["res"]):
-                    model_dict = {
-                        "text" : "",
-                        "box" : [],
-                        "proba" : 0
-                    }
-                    model_dict["text"] = res_dict["text"]
-                    model_dict["box"] = res_dict['text_region'][0] + res_dict['text_region'][2]
-                    model_dict["box"] = [int(c) for c in model_dict["box"]]
-                    model_dict["proba"] = res_dict["confidence"]
-                    res.append(model_dict)   
-        return res
+    # if True:
+    #     im = deepcopy(image)
+    #     for i, cell in enumerate(results):
+    #         x1,y1,x2,y2 = cell["box"]
+    #         cv2.rectangle(
+    #             im,
+    #             (int(x1),int(y1)),
+    #             (int(x2),int(y2)),
+    #             (0,0,0),2)
+    #     plt.imshow(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+    #     plt.show()
     
-    table_engine = PPStructure(recovery=True, lang='en', table=True, show_log = False)
-    result = table_engine(image, return_ocr_result_in_table=False)
-
-    for line in result:
-        line.pop('img')
-
-    print(result[0].keys())
-    if "html" in list(result[0]["res"].keys()):
-        print(result[0]["res"]["html"])
-        table = pd.read_html(result[0]["res"]["html"])
-        table[0].to_excel("res.xlsx")
-
-            
-
-    h, w, = image.shape[:2]
-    res = sorted_layout_boxes(result, w)
-    convert_info_docx(image, res, "", "res")
-
-    return res
+    return results
 
 def find_match(key_sentences, paddleOCR, box, eta=0.95): # Could be optimized
     """
