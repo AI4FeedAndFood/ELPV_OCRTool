@@ -7,6 +7,7 @@ import dicttoxml
 import json
 import pandas as pd
 from copy import deepcopy
+from datetime import datetime
 
 from screeninfo import get_monitors
 from PIL import Image
@@ -324,9 +325,10 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
 
     def _copy_dict(verified_dict):
         xml_dict = {}
+        num = 1
         for scan_name, scan_dict in verified_dict.items():
             n_copy = int(scan_dict["n_copy"])
-            sample_num = scan_dict["-N_d_echantillon-"]
+            xml_name = datetime.now().strftime("%Y%m%d%H")
             clean_dict = convertDictToLIMS(scan_dict, CLIENT_CONTRACT_DF)
             if n_copy>1:
                 customer_reference = clean_dict["Sample"]["CustomerReference"]
@@ -337,13 +339,16 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
 
                     clean_dict["Sample"] = deepcopy(sample_dict)
                     clean_dict["Sample"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
-                    xml_dict[sample_num+f"_{i_copy+1}"] = deepcopy(clean_dict)
+                    sample_num_id = xml_name+f"_{num}"
+                    while sample_num_id in list((xml_dict).keys()):
+                        num+=1
+                        sample_num_id =xml_name+f"_{num}"
+                    xml_dict[sample_num_id] = deepcopy(clean_dict)
             else: 
-                num = 1
-                sample_num_id = sample_num + "_" + str(num)
+                sample_num_id = xml_name+f"_{num}"
                 while sample_num_id in list((xml_dict).keys()):
                     num+=1
-                    sample_num_id = sample_num + "_" + str(num)
+                    sample_num_id = xml_name+f"_{num}"
                 xml_dict[sample_num_id] = deepcopy(clean_dict)
             # res_dict[scan_name] = clean_dict
 
