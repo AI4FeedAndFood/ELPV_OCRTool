@@ -10,7 +10,7 @@ CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["checkbox"
 
 empty_checkbox_path = CONFIG_DICT["check"]["type_lot"]["empty_path"]
 cross_checkbox_path = CONFIG_DICT["check"]["type_lot"]["cross_path"]
-table_checkbox_path = CONFIG_DICT["table"]["parasite_recherche"]["cross_path"]
+table_checkbox_path = CONFIG_DICT["table"]["cross_path"]
 
 TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: cv2.resize(x, (int(x.shape[1]*1.15), x.shape[0])),
              lambda x: cv2.resize(x, (x.shape[1], int(x.shape[0]*1.15)))] # Maybe can be cleaner with a transform class

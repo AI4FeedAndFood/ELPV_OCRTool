@@ -9,12 +9,10 @@
         },
 
         "table" : { 
-            "parasite_recherche" : {
-                "list" :  ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Ralstonia solanacearum", "Clavibacter", 
-                "Globodera pallida","Globodera rostochiensis"],
-                "cross_path" : "reference_images\\cross_table.png"
-            }
-        }
+            "list" :  ["Meloidogyne chitwoodi", "Meloidogyne fallax", "Ralstonia solanacearum", "Clavibacter", 
+            "Globodera pallida","Globodera rostochiensis"],
+            "cross_path" : "reference_images\\cross_table.png"
+    }
     },
 
     "landscape_HSV" : {
@@ -173,7 +171,7 @@
 
     "table" : {
         "N_d_echantillon" : {
-            "subregion" : [[0.22, 0.9], [0.75, 1]],
+            "subregion" : [[0.22, 0.1], [0.75, 1]],
             "key_sentences" : [["ECH:"], ["N°","d'echantillon"]],
             "relative_position" : [[[-0.2,5], [0,8]], [[4,50], [-0.5,1.5]]],
             "conditions" : ["echantillon", [20, 99]]
@@ -203,10 +201,10 @@
             "conditions" : ["after_key", [["LIEU", "PRELEVEMENT"], ["Nom", "Prenom", "Inspecteur"]]]
         },
         "N_de_scelle" : {
-            "subregion" : [[0.25, 0.9], [0.8, 1]],
+            "subregion" : [[0.25, 1], [0.8, 1]],
             "key_sentences" : [["Scellé"], ["N°","de", "scelle"]],
             "relative_position" : [[[-0.2,5], [0,8]], [[4,50], [-0.5,1.5]]],
-            "conditions" : ["after_key", [["Scelle:"], ["ECH:"]]]
+            "conditions" : ["after_key", [["Scelle"], []]]
         },
         "parasite_recherche" : {
             "subregion" : [[0.25, 0.8], [0.16, 0.5]],
@@ -227,7 +225,7 @@
         },
         "nom" : {
             "subregion" : [[0.35, 1], [0.08, 0.25]],
-            "key_sentences" : [["N° identification"], ["producteur", "culture"]],
+            "key_sentences" : [["identification"], ["producteur", "culture"]],
             "relative_position" : [[[1,100], [-3,3]]],
             "merged" : 1,
             "theorical_col" : [0.1, 0.25],

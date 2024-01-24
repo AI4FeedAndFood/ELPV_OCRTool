@@ -9,7 +9,7 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from TextExtraction import get_key_matches_and_OCR, get_wanted_text, ZoneMatch, condition_filter
+from TextExtraction import get_key_matches_and_OCR, ZoneMatch, condition_filter
 from ProcessPDF import binarized_image, HoughLines
 
 
@@ -268,9 +268,11 @@ def get_frame_lines(position, lines , mode="vertical", var_match=False):
     return first_line, second_line    
 
 def text_cell(full_OCR, cell_box, column):
+
     def _get_candidate(full_OCR):
         candidate_dicts = [dict_sequence for dict_sequence in full_OCR if 
-                      (xmin<(dict_sequence["box"][0]+dict_sequence["box"][2])*0.5<xmax) and (ymin<dict_sequence["box"][1]<ymax)]
+                      (xmin<(dict_sequence["box"][0]+dict_sequence["box"][2])*0.5<xmax) and 
+                      ((ymin<dict_sequence["box"][1]<ymax) or (ymin<dict_sequence["box"][3]<ymax))]
         return candidate_dicts
     
     xmin,ymin,xmax,ymax = cell_box
@@ -294,7 +296,6 @@ def ProcessLandscape(image):
     if dots == []:
         print("No dot")
         return {}
-    min_dot_y, max_dot_y = min(dots, key=lambda x: x[1])[1], max(dots, key=lambda x: x[1])[1]
     Y,X = processed_image.shape[:2]
     # Find lines in the scan
     vertical_lines = HoughLines(processed_image)
@@ -310,7 +311,6 @@ def ProcessLandscape(image):
     # Find columns header
     zone_key_match_dict, full_img_OCR = get_key_matches_and_OCR(format, processed_image)
     # Now let's concider text around dots
-    full_img_OCR = [seq for seq in full_img_OCR if min_dot_y-100<(seq["box"][1]+seq["box"][3])/2<max_dot_y+100]
     full_img_OCR = split_with_line(vertical_lines, full_img_OCR)
     # Get columns frame vertical lines
     columns = []

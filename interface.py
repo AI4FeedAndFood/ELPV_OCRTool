@@ -88,6 +88,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim, landscape=False):
                                 sg.I(sequence, background_color=back_color,
                                 key=f"-{zone}-", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1), justification='left')])
                                 # sg.Image(data=bio.getvalue(), key=f'image_{zone}')])
+    
     # Combo for Reference Echantillon
     if (image_dict["variete"]["sequence"] == []) or landscape:
         default_ref = "Sol"  
@@ -322,9 +323,10 @@ def runningSave(save_path_json, verified_imageDict, image_name, res_dict, n_copy
 def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="", xml_name="verified_XML"):
 
     def _copy_dict(verified_dict):
-        res_dict = {}
+        xml_dict = {}
         for scan_name, scan_dict in verified_dict.items():
             n_copy = int(scan_dict["n_copy"])
+            sample_num = scan_dict["-N_d_echantillon-"]
             clean_dict = convertDictToLIMS(scan_dict, CLIENT_CONTRACT_DF)
             if n_copy>1:
                 customer_reference = clean_dict["Sample"]["CustomerReference"]
@@ -335,19 +337,25 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
 
                     clean_dict["Sample"] = deepcopy(sample_dict)
                     clean_dict["Sample"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
-                    res_dict[scan_name+f"_{i_copy+1}"] = deepcopy(clean_dict)
-            else: res_dict[scan_name] = deepcopy(clean_dict)
+                    xml_dict[sample_num+f"_{i_copy+1}"] = deepcopy(clean_dict)
+            else: 
+                num = 1
+                sample_num_id = sample_num + "_" + str(num)
+                while sample_num_id in list((xml_dict).keys()):
+                    num+=1
+                    sample_num_id = sample_num + "_" + str(num)
+                xml_dict[sample_num_id] = deepcopy(clean_dict)
             # res_dict[scan_name] = clean_dict
 
-        return res_dict
+        return xml_dict
     
     if out_path:
         new_xml = os.path.join(out_path, xml_name)
         if not os.path.exists(new_xml):
             os.makedirs(new_xml)
     
-    cleaned_verified_dict = _copy_dict(verified_dict)
-    for scan_name, scan_dict in cleaned_verified_dict.items():
+    xml_dict = _copy_dict(verified_dict)
+    for scan_name, scan_dict in xml_dict.items():
         xml = dicttoxml.dicttoxml(scan_dict)
         with open(os.path.join(xml_save_path, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
             result_file.write(xml.decode())
@@ -381,6 +389,7 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
     while True:
         add_windows, verif_event_add, verif_values_add = sg.read_all_windows()
         if verif_event_add == sg.WINDOW_CLOSED:
+            VerificationWindow_add.close()
             return None, None, None
 
         if verif_event_add in ["-client_name-", '-AUTO_CLIENT-', "-contract_name-", '-AUTO_CONTRACT-']:
@@ -445,7 +454,7 @@ def main():
                         json_file  = open(save_path_json, encoding='utf-8')
                         res_dict_per_image = json.load(json_file)
                         images_names_dict = list(res_dict_per_image["RESPONSE"].keys())
-                        images, images_names =  get_images_and_adapt_landscape(images_names_dict, images, images_names)
+                        images, images_names = get_images_and_adapt_landscape(images_names_dict, images, images_names)
                         welcomWindow.close()
                         start = True
                         if images_names_dict != images_names:
@@ -533,7 +542,8 @@ def main():
                                         else:
                                             verified_dict[image_name] = verif_values
                                             runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_copy)
-                                            choice = sg.popup_ok(f"Il n'y a pas d'image suivante.\n\n{len(verified_dict)} fichiers vont être générés.\n\nFinir l'analyse ?", 
+                                            n_xml = sum([int(verified_dict[name]["n_copy"]) for name in verified_dict.keys()])
+                                            choice = sg.popup_ok(f"Il n'y a pas d'image suivante.\n\n{n_xml} fichiers vont être générés.\n\nFinir l'analyse ?", 
                                                                  button_color="dark green")
                                             if choice == "OK":
                                                 json_file.close() # Close the file

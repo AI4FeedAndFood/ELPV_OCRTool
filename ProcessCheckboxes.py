@@ -8,7 +8,6 @@ CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["checkbox"
 
 empty_checkbox_path = CONFIG_DICT["check"]["type_lot"]["empty_path"]
 cross_checkbox_path = CONFIG_DICT["check"]["type_lot"]["cross_path"]
-table_checkbox_path = CONFIG_DICT["table"]["parasite_recherche"]["cross_path"]
 
 def preprocessed_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

@@ -96,4 +96,4 @@ if __name__ == "__main__":
     
     print("start")
     path = r"C:\Users\CF6P\Desktop\ELPV\Data\debug"
-    TextCVTool(path, def_format="landscape")
+    TextCVTool(path, def_format="")

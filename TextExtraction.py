@@ -490,12 +490,15 @@ def condition_filter(candidates_dicts, condition):
 
     return match_indices, res_seq
     
-def get_checkbox_table_format(checkbox_dict, parasites, match_indices, candidate_dicts, area_image, yshift):
+def get_checkboxes_table_format(checkbox_dict, area_image):
     TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
                 lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))]   
     templates = [Template(image_path=checkbox_dict["cross_path"], label="cross", color=(0, 0, 255), matching_threshold=0.71, transform_list=TRANSFORM)]        
     checkboxes = get_checkboxes(area_image, TEMPLATES=templates, show=False)
     sorted_checkboxes = sorted([checkbox for checkbox in checkboxes if checkbox["LABEL"]=="cross"], key=lambda obj: obj["MATCH_VALUE"], reverse=True)
+    return sorted_checkboxes
+
+def get_para_table_format(sorted_checkboxes, parasites, match_indices, candidate_dicts):
 
     check_parasite, parasite_indices, matched_check_box = [], [], []
 
@@ -503,7 +506,6 @@ def get_checkbox_table_format(checkbox_dict, parasites, match_indices, candidate
         top_mid_bottom = [checkbox["TOP_LEFT_Y"], (checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"])/2, checkbox["BOTTOM_RIGHT_Y"]]
         for i_cand, parasite in enumerate(parasites):
             x1, y1, x2, y2 = candidate_dicts[match_indices[i_cand]]["box"] # Parasite position    
-            y1, y2 = y1-yshift, y2-yshift  
             if any([y1<point<y2 for point in top_mid_bottom]): # Can select multiple choices
                 check_parasite.append(parasite)
                 parasite_indices.append(match_indices[i_cand])
@@ -514,7 +516,6 @@ def get_checkbox_table_format(checkbox_dict, parasites, match_indices, candidate
         for i_cand, parasite in enumerate(parasites):
             if parasite not in check_parasite:
                 x1, y1, x2, y2 = candidate_dicts[match_indices[i_cand]]["box"] # Parasite position
-                y1, y2 = y1-yshift, y2-yshift
                 dist = abs((y1+y2)-(checkbox["TOP_LEFT_Y"]+checkbox["BOTTOM_RIGHT_Y"]))/2
                 if dist < 100:
                     distance_list.append((dist, parasite, match_indices[i_cand]))
@@ -566,14 +567,26 @@ def _post_extraction_cleaning(text):
 
 def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=OCR_HELPER, local=False):
     zone_matches = {}
+
+    if format == "table":
+        checkbox_dict = JSON_HELPER["checkbox"][format]
+        sorted_checkboxes = get_checkboxes_table_format(checkbox_dict, cropped_image)
+
     for zone, key_points in JSON_HELPER[format].items():
         key_match =  zone_key_match_dict[zone]
         i_key, box = key_match.key_index,  key_match.OCR["box"]
         condition, relative_position = key_points["conditions"], key_points["relative_position"][i_key]
         xmin, ymin, xmax, ymax = box if key_match.confidence==-1 else get_area(cropped_image, box, relative_position, corr_ratio=1.15)
-        # print(box, key_match.confidence, (xmin, ymin, xmax, ymax))
-        # plt.imshow(cropped_image[ymin:ymax, xmin:xmax])
-        # plt.show()
+
+        if format == "table" and zone in ["N_d_echantillon", "N_de_scelle"]:
+            if len(sorted_checkboxes)>0:
+                checkbox = sorted(sorted_checkboxes, key=lambda obj: obj["TOP_LEFT_Y"])[0]
+                up, down = checkbox["TOP_LEFT_Y"], checkbox["BOTTOM_RIGHT_Y"]
+                ymin, ymax = up - 3*abs(down-up), up + 3*abs(down-up)
+
+                # print(box, key_match.confidence, (xmin, ymin, xmax, ymax))
+                # plt.imshow(cropped_image[ymin:ymax, xmin:xmax])
+                # plt.show()
         
         candidate_dicts = [dict_sequence for dict_sequence in full_img_OCR if 
                       (xmin<dict_sequence["box"][0]<xmax) and (ymin<dict_sequence["box"][1]<ymax)]
@@ -588,9 +601,7 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
             match_indices, res_seq = condition_filter(candidate_dicts, condition)
 
         if (format, zone) == ("table", "parasite_recherche"):
-            checkbox_dict = JSON_HELPER["checkbox"][format][zone]
-            yshift = ymin
-            match_indices, res_seq = get_checkbox_table_format(checkbox_dict, res_seq, match_indices, candidate_dicts, cropped_image[ymin:ymax, xmin:xmax], yshift)
+            match_indices, res_seq = get_para_table_format(sorted_checkboxes,res_seq, match_indices, candidate_dicts)
 
         zone_match.match_indices , zone_match.res_seq = match_indices, res_seq
         zone_match.confidence = min([candidate_dicts[i]["proba"] for i in zone_match.match_indices]) if zone_match.match_indices else 0
