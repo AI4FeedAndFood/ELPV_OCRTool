@@ -280,7 +280,11 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
         if key[0] == "-":
             scan_clean_dict[key] = value
     scan_clean_dict["-parasite_recherche-"] = para
-    scan_clean_dict["-parasite_package-"], scan_clean_dict["-parasite_test-"] =_get_parasite_code(para)
+    test_code_list, unit_code_list = _get_parasite_code(para)
+    if test_code_list:
+        scan_clean_dict["-parasite_package-"] = test_code_list
+    if unit_code_list:
+        scan_clean_dict["-parasite_test-"] = unit_code_list
         
     # Convert client and contract for the LIMS
     stack_dict = {}
@@ -305,6 +309,7 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
         if f"-{key}-" in list(scan_clean_dict.keys()):
             dict_name, code = name_code
             stack_dict[dict_name][code] = scan_clean_dict[f"-{key}-"]
+
     stack_dict["Sample"]["AdditionalField"] = stack_dict["AdditionalField"]
     stack_dict["root"]["Sample"] = stack_dict["Sample"]
     return stack_dict["root"]

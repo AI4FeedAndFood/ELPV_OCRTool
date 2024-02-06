@@ -1,6 +1,6 @@
 {   
     "checkbox": {
-        "check" : { 
+        "check" : {
             "type_lot" : {
                 "list" :  ["Surveillance", "SORE", "PP", "Export", "Inspection privee"],
                 "cross_path" : "reference_images\\cross_checkbox.png",

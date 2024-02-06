@@ -67,6 +67,8 @@ def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
     res_dict_per_image["CONFIG"] = config
     res_dict_per_image["RESPONSE"] = {}
 
+    last_format = def_format
+
     for i in tqdm(range(len(images))):
         print(" Start at : ", datetime.now().strftime("%H:%M:%S"))
         image = images[i]
@@ -74,6 +76,11 @@ def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
         bin_image = binarized_image(image)
         rectangles = get_rectangles(bin_image)
         format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, image, input_format=def_format)
+
+        if format == "":
+            format = last_format
+        
+        last_format = format
 
         if format == "landscape":
             landscape_dict_res = ProcessLandscape(cropped_image)

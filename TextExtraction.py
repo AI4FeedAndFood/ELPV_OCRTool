@@ -155,7 +155,7 @@ def find_match(key_sentences, paddleOCR, box, eta=0.95): # Could be optimized
     
     return best_matches
 
-def clean_sequence(paddle_list, full = "|\[]_!<>{}—;$€&*‘§—~-+", left="'(*): |\[]_!.<>{}—;$€&-"):
+def clean_sequence(paddle_list, full = "|\[]_!<>{}—;$€&*‘§—~", left="'(*): |\[]_!.<>{}—;$€&-"):
     res_dicts = []
     for dict_seq in paddle_list:
         text = dict_seq["text"]
@@ -615,8 +615,7 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
         zone_matches[zone] = {
                 "sequence" : zone_match.res_seq,
                 "confidence" : float(zone_match.confidence),
-                "area" : (int(xmin), int(ymin), int(xmax), int(ymax)),
-                "format" : format
+                "area" : (int(xmin), int(ymin), int(xmax), int(ymax))
             }
 
     return zone_matches 
