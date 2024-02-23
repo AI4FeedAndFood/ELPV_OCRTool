@@ -50,7 +50,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim, landscape=False):
     lineLayout = []
     # Returned the tool's response for each field
     for zone, landmark_text_dict in image_dict.items():
-        if not zone in ["client_name", "contract_name", "n_copy", "ref_echantillon"]:
+        if not zone in ["client_name", "contract_name", "n_start", "n_end", "with_0", "ref_echantillon"]:
             clean_zone_name = conversion_dict[zone]
             text = f"{clean_zone_name} : "
             sequence = landmark_text_dict["sequence"]
@@ -159,13 +159,17 @@ def ContractSuggestionWindow(values, mainWindow):
 
 def getMainLayout(image_dict, image, X_dim, Y_dim, last_info, landscape=False, add=False):
     FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim, landscape=landscape), _getImageLayout(image), _getClientContractLayout(image_dict, last_info)
-    n_copy = image_dict["n_copy"] if "n_copy" in list(image_dict.keys()) else 1
+    n_start = image_dict["n_start"] if "n_start" in list(image_dict.keys()) else ""
+    n_end = image_dict["n_end"] if "n_end" in list(image_dict.keys()) else ""
+
     MainLayout = [
         [sg.Text("Attention : Veuillez bien vérifier les champs proposés"), sg.Push(), sg.Button("Consignes d'utilisation", k="-consignes-")],
         [sg.Push(), 
          sg.B("<- Retour", s=10), sg.B("Valider ->", s=10), 
-         sg.T("Nombre de copie total : "), sg.I(str(n_copy), key='n_copy', size=(3,1), justification='right'),
-         sg.B("Ajouter une commande manuellement", s=10, size=(35, 1)),
+         sg.Push(), sg.B("Ajouter une commande manuellement", s=10, size=(35, 1)), sg.Push()],
+        [sg.Push(), sg.T("Pour ajouter des copies : Index de début"), sg.I(str(n_start), key='n_start', size=(3,1), justification='right', ),
+         sg.T("Index de fin"), sg.I(str(n_end), key='n_end', size=(3,1), justification='right'),
+         sg.Checkbox("Incrémenter avec 0", key="with_0"),
          sg.Push()]
     ]
 
@@ -174,8 +178,11 @@ def getMainLayout(image_dict, image, X_dim, Y_dim, last_info, landscape=False, a
         [sg.Push(), sg.Text("AJOUT MANUEL", font=("Helvetica", 36, "bold")), sg.Push()],
         [sg.Text("Attention : Veuillez bien vérifier les champs proposés"), sg.Push()],
         [sg.Push(), 
-         sg.B("Valider ->", s=10), 
-         sg.T("Nombre de copie total : "), sg.I(str(n_copy), key='n_copy', size=(3,1), justification='right'),
+         sg.B("Valider ->", s=10),
+         sg.Push()],
+        [sg.Push(), sg.T("Pour ajouter des copies : Index de début"), sg.I(str(n_start), key='n_start', size=(3,1), justification='right', ),
+         sg.T("Index de fin"), sg.I(str(n_end), key='n_end', size=(3,1), justification='right'),
+         sg.Checkbox("Incrémenter avec 0"),
          sg.Push()]
     ]
     
@@ -239,12 +246,18 @@ def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, Ver
     return  CONTRACT_LIST, verif_event, verif_values, VerificationWindow, ClientSuggestionW, contractSuggestionW
 
 def check_n_copy(verif_values, X_loc, Y_loc):
+
+    n_start, n_end = verif_values["n_start"], verif_values["n_end"]
+    if (n_start, n_end) == ("",""):
+        return n_start, n_end, True
+    
     try:
-        n_copy = int(verif_values["n_copy"])
-        return n_copy, True
+        n_start, n_end = int(verif_values["n_start"]), int(verif_values["n_end"])
+        return n_start, n_end, True
+    
     except ValueError:
         sg.popup_ok("Veuillez renseigner un nombre entier de copie", button_color="dark green", location=(X_loc+200, Y_loc+200))
-        return None, False
+        return None, None, False
 
 def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF): 
     
@@ -314,8 +327,10 @@ def convertDictToLIMS(verified_dict, CLIENT_CONTRACT_DF):
     stack_dict["root"]["Sample"] = stack_dict["Sample"]
     return stack_dict["root"]
 
-def runningSave(save_path_json, verified_imageDict, image_name, res_dict, n_copy):
-    res_dict["RESPONSE"][image_name].update({"n_copy" : n_copy})
+def runningSave(save_path_json, verified_imageDict, image_name, res_dict, n_start, n_end, with_0):
+    res_dict["RESPONSE"][image_name].update({"n_start" : n_start})
+    res_dict["RESPONSE"][image_name].update({"n_end" : n_end})
+    res_dict["RESPONSE"][image_name].update({"with_0" : with_0})
     res_dict["RESPONSE"][image_name].update({"ref_echantillon" : {"sequence" : "" }})
     res_dict["RESPONSE"][image_name].update({"client_name" : {"sequence" : "" }})
     res_dict["RESPONSE"][image_name].update({"contract_name" : {"sequence" : "" }})
@@ -332,18 +347,23 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
         xml_dict = {}
         num = 1
         for scan_name, scan_dict in verified_dict.items():
-            n_copy = int(scan_dict["n_copy"])
+            n_start, n_end = scan_dict["n_start"], scan_dict["n_end"]
+            with_0 = scan_dict["with_0"]
             xml_name = datetime.now().strftime("%Y%m%d%H")
             clean_dict = convertDictToLIMS(scan_dict, CLIENT_CONTRACT_DF)
-            if n_copy>1:
+            if (n_start, n_end) != ("", ""):
                 customer_reference = clean_dict["Sample"]["CustomerReference"]
                 sample_dict = clean_dict.pop("Sample")
-                for i_copy in range(n_copy):
+                for i_copy in range(int(n_start),int(n_end)+1):
                     # clean_dict[f"Sample_{i_copy+1}"] = deepcopy(sample_dict)
                     # clean_dict[f"Sample_{i_copy+1}"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
+                    if with_0 and i_copy<10:
+                        i_name = f"0{i_copy}"
+                    else :
+                        i_name = i_copy
 
                     clean_dict["Sample"] = deepcopy(sample_dict)
-                    clean_dict["Sample"].update({"CustomerReference" : customer_reference + f"_{i_copy+1}"})
+                    clean_dict["Sample"].update({"CustomerReference" : customer_reference + f"{i_name}"})
                     sample_num_id = xml_name+f"_{num}"
                     while sample_num_id in list((xml_dict).keys()):
                         num+=1
@@ -365,6 +385,7 @@ def finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_save_path, out_path="",
             os.makedirs(new_xml)
     
     xml_dict = _copy_dict(verified_dict)
+    xml_dict = dict(sorted(xml_dict.items()))
     for scan_name, scan_dict in xml_dict.items():
         xml = dicttoxml.dicttoxml(scan_dict)
         with open(os.path.join(xml_save_path, f"{scan_name}.xml"), 'w', encoding='utf8') as result_file:
@@ -391,7 +412,6 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
     ClientSuggestionW_add, contractSuggestionW_add = None, None
     client_warning=False
     image_name_add = image_name+"_ajout_main_"
-    num = 0
     VerificactionLayout_add = MainLayout
     VerificationWindow_add = sg.Window(f"Fiche {image_name_add}", 
                                 VerificactionLayout_add, use_custom_titlebar=True, location=(X_loc+30, Y_loc), 
@@ -416,17 +436,18 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
                 client_warning=True
                 copy_status = False
             # Check "n_copie" format
-            else : n_copy, copy_status = check_n_copy(verif_values_add, X_loc+20, Y_loc)
+            else : n_start, n_end, copy_status = check_n_copy(verif_values_add, X_loc+20, Y_loc)
 
             if copy_status:
                 # Register the response and go to the following
+                with_0 = "with_0" in verif_values_add.keys()
                 image_name_add_num = image_name_add + str(num)
                 while image_name_add_num in list(verified_dict.keys()):
                     image_name_add_num = image_name_add + str(num)
                     num+=1
                 VerificationWindow_add.close()
 
-                return verif_values_add, image_name_add_num, n_copy
+                return verif_values_add, image_name_add_num, n_start, n_end, with_0
                 # If last image
 
 def main():
@@ -441,6 +462,7 @@ def main():
     ClientSuggestionW, contractSuggestionW = None, None
     while True:
         event, values = welcomWindow.read()
+        welcomWindow.BringToFront()
         if event in (sg.WINDOW_CLOSED, "Exit"):
             break
         if event == "Lancer l'algorithme":
@@ -538,46 +560,48 @@ def main():
                                             client_warning=True
                                             copy_status = False
                                     # Check "n_copie" format
-                                    else : n_copy, copy_status = check_n_copy(verif_values, X_loc, Y_loc)
+                                    else : n_start, n_end, copy_status = check_n_copy(verif_values, X_loc, Y_loc)
 
                                     if copy_status:
                                         # If not last image
                                         last_info = [verif_values["-client_name-"], verif_values['-contract_name-']]
+                                        with_0 = "with_0" in verif_values.keys()
                                         if not n_image == len(images_names)-1:
                                             # Register the response and go to the following
                                             verified_dict[image_name] = verif_values
-                                            runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_copy)
+                                            runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_start, n_end, with_0)
                                             n_image+=1
                                         # If last image
+                                            print(verif_values)
                                         else:
                                             verified_dict[image_name] = verif_values
-                                            runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_copy)
-                                            n_xml = sum([int(verified_dict[name]["n_copy"]) for name in verified_dict.keys()])
+                                            runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_start, n_end, with_0)
+                                            n_xml = len(verified_dict) + sum([int(verified_dict[name]["n_end"]) - int(verified_dict[name]["n_start"]) for name in verified_dict.keys() if verified_dict[name]["n_end"]!= ""])
                                             choice = sg.popup_ok(f"Il n'y a pas d'image suivante.\n\n{n_xml} fichiers vont être générés.\n\nFinir l'analyse ?", 
                                                                  button_color="dark green")
                                             if choice == "OK":
                                                 json_file.close() # Close the file
                                                 finalSaveDict(verified_dict, CLIENT_CONTRACT_DF, xml_res_path, out_path=LIMSsettings["TOOL_PATH"]["output_folder"])
                                                 VerificationWindow.close()
-                                                break
+                                                return
 
                                 if verif_event == "Ajouter une commande manuellement":
                                     VerificationWindow.Disable()
                                     VerificationWindow.SetAlpha(0.5)
                                     new_CONTRACT_LIST = CONTRACT_LIST_0
                                     addLayout = getMainLayout(image_dict, image, X_dim, Y_dim, last_info=last_info, landscape=values["landscape"], add=True)
-                                    verif_values_add, image_name_add, n_copy = manually_add_order(addLayout, verified_dict, image_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
+                                    verif_values_add, image_name_add, n_start, n_end, with_0 = manually_add_order(addLayout, verified_dict, image_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
                                     if verif_values_add:
                                         verified_dict[image_name_add] = verif_values_add
                                         res_dict_per_image["RESPONSE"][image_name_add] = deepcopy(image_dict)
-                                        runningSave(save_path_json, verif_values_add, image_name_add, res_dict_per_image, n_copy)
+                                        runningSave(save_path_json, verif_values_add, image_name_add, res_dict_per_image, n_start, n_end, with_0)
                                     VerificationWindow.Enable()
                                     VerificationWindow.SetAlpha(1)
                                     
 
                                 if verif_event == "<- Retour":
                                     if n_image>0:
-                                        runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_copy)
+                                        runningSave(save_path_json, verif_values, image_name, res_dict_per_image, n_start, n_end, with_0)
                                         n_image-=1
                                         if contractSuggestionW : contractSuggestionW.close()
                                         if ClientSuggestionW : ClientSuggestionW.close()
