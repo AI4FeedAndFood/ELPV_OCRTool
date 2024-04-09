@@ -4,10 +4,10 @@ import cv2
 import json
 
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
-CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["checkbox"]
+CONFIG_CHECK_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["PATHES"]["checkbox"]
 
-empty_checkbox_path = CONFIG_DICT["check"]["type_lot"]["empty_path"]
-cross_checkbox_path = CONFIG_DICT["check"]["type_lot"]["cross_path"]
+cross_checkbox_path = CONFIG_CHECK_DICT["Fredon avec cases"]["type_lot"]["cross_path"]
+empty_checkbox_path = CONFIG_CHECK_DICT["Fredon avec cases"]["type_lot"]["empty_path"]
 
 def preprocessed_image(image):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)

@@ -155,7 +155,7 @@ def get_rect_by_format(bin_image, rectangles, format=""):
         wh = (xmin_xmax_ymin_ymax[1]-xmin_xmax_ymin_ymax[0]+10, xmin_xmax_ymin_ymax[3]-xmin_xmax_ymin_ymax[2]+10)
         xy = (wh[0]//2 + xmin_xmax_ymin_ymax[0], wh[1]//2 + xmin_xmax_ymin_ymax[2])
         
-        if format == "landscape":
+        if format == "SEMAE":
             wh = (xmin_xmax_ymin_ymax[1]-xmin_xmax_ymin_ymax[0]+10, y)
         
         # im = bin_image.copy()
@@ -186,13 +186,13 @@ def get_format_and_adjusted_image(bin_image, rectangles, original_image, input_f
     else :  
         format = sortFormat(bin_image, rectangles)
 
+    # Get the main rect of the image to crop around
     main_rect = get_rect_by_format(bin_image, rectangles, format=format)
     
-    if format=="landscape":
-        adjusted_image = crop_and_adjust(original_image, main_rect)
-    
-    else :
-        adjusted_image = crop_and_adjust(bin_image, main_rect)
+    # The image to depend on the format
+    image_to_crop = original_image if format=="SEMAE" else bin_image
+
+    adjusted_image = crop_and_adjust(image_to_crop, main_rect)
 
     return format, adjusted_image
     

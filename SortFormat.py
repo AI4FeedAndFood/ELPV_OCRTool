@@ -6,11 +6,11 @@ import matplotlib.pyplot as plt
 from ProcessCheckboxes import visualize, checkbox_match, non_max_suppression, Template
 
 OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
-CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["checkbox"]
+CONFIG_DICT = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))["PATHES"]["checkbox"]
 
-empty_checkbox_path = CONFIG_DICT["check"]["type_lot"]["empty_path"]
-cross_checkbox_path = CONFIG_DICT["check"]["type_lot"]["cross_path"]
-table_checkbox_path = CONFIG_DICT["table"]["cross_path"]
+empty_checkbox_path = CONFIG_DICT["Fredon avec cases"]["type_lot"]["empty_path"]
+cross_checkbox_path = CONFIG_DICT["Fredon avec cases"]["type_lot"]["cross_path"]
+table_checkbox_path = CONFIG_DICT["Fredon tableau"]["cross_path"]
 
 TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: cv2.resize(x, (int(x.shape[1]*1.15), x.shape[0])),
              lambda x: cv2.resize(x, (x.shape[1], int(x.shape[0]*1.15)))] # Maybe can be cleaner with a transform class
@@ -142,10 +142,10 @@ def sortFormat(bin_image, rectangles, show=False):
     best_format = Match("", 100)
 
     if len(rectangles)==4:
-        best_format.label = "unofficial"
+        best_format.label = "Fredon non officiel"
 
     if len(rectangles)==3:
-        best_format.label = "table"
+        best_format.label = "Fredon tableau"
 
     if len(rectangles)== 2:
         y_im, x_im = bin_image.shape[:2]
@@ -160,9 +160,9 @@ def sortFormat(bin_image, rectangles, show=False):
             if x_im*(1/3)<x<x_im*(2/3) and y_im*(1/4)<y<y_im:
                 count+=1
         if count>0: # Threshold choosen arbitrary
-            best_format.label = "table"
+            best_format.label = "Fredon tableau"
         else:
-            best_format.label = "check"
+            best_format.label = "Fredon avec cases"
     
     if len(rectangles) == 1:
 
@@ -179,9 +179,9 @@ def sortFormat(bin_image, rectangles, show=False):
             if x<x_im/2 and y_im*(1/5)<y<y_im*(4/5):
                 count+=1
         if count>5: # Threshold choosen arbitrary
-            best_format.label = "check"
+            best_format.label = "Fredon avec cases"
         else:
-            best_format.label = "hand"
+            best_format.label = "Fredon sans case"
     return best_format.label
 
 if __name__ == "__main__":

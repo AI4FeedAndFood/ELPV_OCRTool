@@ -3,7 +3,7 @@
         "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1",
         "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS"
     },
-    "CLEAN_ZONE" : {
+    "CLEAN_ZONE_NAMES" : {
         "N_d_echantillon" : "Numero d'echantillon",
         "date_de_prelevement" : "Date de prelevement",
         "nom" : "Nom",
@@ -12,58 +12,122 @@
         "localisation_prelevement" : "Localisation du prelevement",
         "N_de_scelle" : "Numero de scelle",
         "N_de_lot" : "Numero de lot",
-        "parasite_recherche" : "Parasites",
+        "analyse" : "Parasites",
         "pays_d_origine" : "Pays d'origine"
     },
-    "LIMS_CONVERTER" : {
-        "CustomerCode" : ["root", "CustomerCode"],
-        "ContractCode" :  ["root", "ContractCode"],
-        "Devis" :  ["root", "Devis"],
-        "EngamentJuridique" :  ["AdditionalField", "LO00300"],
-        "N_d_echantillon" : ["Sample", "CustomerReference"],
-        "date_de_prelevement" : ["AdditionalField", "M005"],
-        "nom"  : ["AdditionalField", "LN478"],
-        "variete" : ["AdditionalField", "AAA036_variete"],
-        "localisation_prelevement" :["AdditionalField", "IP004"],
-        "pays_d_origine" : ["AdditionalField", "AAA036_pays_origine"],
-        "N_de_scelle" : ["AdditionalField", "IP005"],
-        "N_de_lot" : ["AdditionalField", "AAM008"],
-        "parasite_test" : ["Sample", "TestCode"],
-        "parasite_package" : ["Sample", "PackageCode"],
-        "type_lot" : ["AdditionalField", "IP001"],
-        "ref_echantillon" : ["Sample", "ReferenceEchantillon"]
-    },
-    "UNIT_TEST_CODE" : {
-        "IP09F" : "Rhizomanie",
+
+    "MODELS" : ["Fredon", "SEMAE"],
+
+    "ADDED_FIELDS" : ["client_name", "contract_name", "n_start", "n_end", "with_0", "ref_echantillon"],
+    "FOR_SAVE_FIELDS" : ["n_start", "n_end", "with_0"],
+    
+    "SAMPLE_MERGER" : "Order.ContractCode",
+
+    "PRODUCTCODE_DICT" : {
+        "Sol": "02288",
+        "Tubercule": "00071",
+        "Betterave": "01305"},
+
+    "LIMS_CONVERTER" :   {
+        "RecipientLabCode" : {
+            "path" : "Order.RecipientLabCode",
+            "input": "HARDCODE",
+            "value" : "EUFRLO"
+        },
+        "CustomerCode" : {
+            "path" : "Order.CustomerCode",
+            "input": "CustomerCode"
+        },
+
+        "QuotationCode" : {
+            "path" : "Order.QuotationCode",
+            "input": "QuotationCode"
+        },
+
+        "ContractCode" : {
+            "path" : "Order.ContractCode",
+            "input": "ContractCode"
+        },
+
+        "CustomerReference" : {
+            "path" : "Order.Samples.Sample.CustomerReference",
+            "input": "N_d_echantillon"
+        },
         
-        "IP006" : "Clavibacter",
-        "IP007" : "Ralstonia solanacearum",
+        "SampleDescription" : {
+            "path" : "Order.Samples.Sample.Description",
+            "input": "code_produit"
+        },
 
-        "IP001" : "Globodera pallida",
-        "IP002" : "Globodera rostochiensis",
+        "FractionCode" : {
+            "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.FractionCode",
+            "input": "HARDCODE",
+            "value" : "J01"
+        },
+        "ProductCode" : {
+            "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.ProductCode",
+            "input": "code_produit"
+        },
+        "CustomerPackage" : {
+            "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.CustomerPackageCode",
+            "input": "CustomerPackage"
+        },
+        "TestCode" : {
+            "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.TestCode",
+            "input": "TestCode"
+        },
 
-        "IP010" : "Meloidogyne chitwoodi",
-        "IP011" : "Meloidogyne fallax",
-        "IP0A1" : "Meloidogyne enterolobii",
-        "IP0B1" : "Nacobbus aberrans",
+        "PackageCode" : {
+            "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.PackageCode",
+            "input": "PackageCode"
+        },
 
-        "IP01A" : "PVY",
-        "IP01M" : "Jambe noire",
-        "IP01L" : "PLRV"
+        "EngamentJuridique" : {
+            "path" : "",
+            "input": "EngagementJuridique"
+        },
+
+        "DatePrelevement" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.A",
+            "input": "date_de_prelevement"
+        },
+
+        "Nom" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.B",
+            "input": "nom"
+        },
+
+        "Variete" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.C",
+            "input": "Variete"
+        },
+        "LocalisationPrelevement" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.D",
+            "input": "localisation_prelevement"
+        },
+        "PaysOrigine" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.E",
+            "input": "pays_d_origine"
+        },
+        "NumeroScelle" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.F",
+            "input": "N_de_scelle"
+        },
+        "NumeroLot" :{
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.G",
+            "input": "N_de_lot"
+        },
+        "TypeLot" :{
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.H",
+            "input": "type_lot"
+        }
     },
-    "PACKAGE_TEST_CODE": {
-        "PIP00" : ["IP006", "IP007"],
-        "PIP01" : ["IP001", "IP002"],
-        "PIP0Z" : ["IP010", "IP011", "IP0A1", "IP0B1"],
-        "PIPT3" : ["IP01A", "IP01M" ,"IP01L"],
-        "PIP0W" : ["IP01A", "IP01L"],
-        "PIPIG" : ["IP01M", "IP01A"]
-    },
+
     "TYPE_LOT": {
         "Export"  : ["SORE", "Export",  "Exportation"],
         "Surveillance" :["Surveillance", "SORE"],
         "Suivi introduction plant" : ["Suivi", "Introduction"],
-        "Gestion de foyer" :  [ "Gestion"],
-        "Autoproduction de plant" : ["Inspection privee"]
+        "Gestion de foyer" :  ["Gestion"],
+        "Autoproduction de plant" : ["Inspection privee", "Autoproduction"]
     }
 }

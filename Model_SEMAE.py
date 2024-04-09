@@ -4,19 +4,28 @@ import cv2
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
+import os
+import sys 
+
 import locale
 locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from TextExtraction import get_key_matches_and_OCR, ZoneMatch, condition_filter
+from Model_Fredon import get_key_matches_and_OCR, ZoneMatch
+from ConditionFilter import condition_filter
 from ProcessPDF import binarized_image, HoughLines
 
+if 'AppData' in sys.executable:
+    application_path = os.getcwd()
+else : 
+    application_path = os.path.dirname(sys.executable)
 
-OCR_HELPER_JSON_PATH  = r"CONFIG\\OCR_config.json"
+format = "SEMAE"
+
+OCR_HELPER_JSON_PATH  = os.path.join(application_path, "CONFIG\OCR_config.json")
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
-
-format = "landscape"
+OCR_PATHES = OCR_HELPER["PATHES"]
 
 class Column:
     """
@@ -277,7 +286,7 @@ def text_cell(full_OCR, cell_box, column):
     
     xmin,ymin,xmax,ymax = cell_box
     candidate_dicts = _get_candidate(full_OCR)
-    match_indices, res_seq = condition_filter(candidate_dicts, column.dict["conditions"])
+    match_indices, res_seq = condition_filter(candidate_dicts, column.dict["conditions"], model=format, application_path=application_path, ocr_pathes=OCR_PATHES)
     conf = min([candidate_dicts[i]["proba"] for i in match_indices]) if match_indices else 0
     zone_match = ZoneMatch(candidate_dicts, match_indices, conf, res_seq)
 
@@ -288,7 +297,7 @@ def text_cell(full_OCR, cell_box, column):
 
     return zone_match
     
-def ProcessLandscape(image):
+def ProcessLandscape(image,image_name):
     # Find dots in the scan and the flip&croped image
     # plt.imshow(image)
     # plt.show()
@@ -333,7 +342,7 @@ def ProcessLandscape(image):
             col.left_line, col.right_line = vert_frame_lines
         columns.append(col)
     
-    landscape_dict_res = {}
+    samples_res_dict = {}
     for i_point, point_position in enumerate(dots):
         _, y_point = point_position
         res_dict_per_zone = {}
@@ -363,13 +372,30 @@ def ProcessLandscape(image):
 
             print(col.name, " : ", zone_match.res_seq)
 
-        res_dict_per_zone["parasite_recherche"] ={
+        res_dict_per_zone["analyse"] ={
                 "sequence" : ["Rhizomanie"],
                 "confidence" : int(1),
                 "area" : cell_box,
                 "format" : format
             }
         
-        landscape_dict_res[f"k90_{k_90}_point_{i_point}"] = res_dict_per_zone
+        samples_res_dict[f"sample_{i_point}"] = {"IMAGE" :image_name,
+                                                 "k_90": k_90,
+                                                  "EXTRACTION" : res_dict_per_zone
+                                                }
 
-    return landscape_dict_res
+    return samples_res_dict
+
+def main(scan_dict):
+    pdfs_res_dict = {}
+
+    for pdf, images_dict in scan_dict.items():
+        print("###### Traitement de :", pdf, " ######")
+        pdfs_res_dict[pdf] = {}
+        for i_image, (image_name, sample_image) in enumerate(list(images_dict.items())):
+            print(image_name)
+            pdfs_res_dict[pdf] = ProcessLandscape(sample_image, image_name)
+    print(pdfs_res_dict)
+    return pdfs_res_dict
+            
+

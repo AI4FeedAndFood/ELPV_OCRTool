@@ -4,8 +4,6 @@ import time
 import os
 import dicttoxml
 import numpy as np
-from tqdm import tqdm
-from datetime import datetime
 import cv2
 
 OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
@@ -15,9 +13,7 @@ whitelist =  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz(),:
 LANG = 'eng+eng2'
 TESSCONFIG = [1, 6, whitelist, LANG]
 
-from ProcessPDF import PDF_to_images, binarized_image, get_rectangles, get_format_and_adjusted_image
-from TextExtraction import textExtraction
-from LandscapeFormat import ProcessLandscape
+from ProcessPDF import PDF_to_images
 
 def getAllImages(path):
     def _get_all_images(path, extList=[".tiff", ".tif", ".png"]):
@@ -30,19 +26,21 @@ def getAllImages(path):
     res_path = os.path.join(path, "RES")
     if not os.path.exists(res_path):
         os.makedirs(res_path)
-    images = []
-    images_names = []
+
+    scan_dict = {}
 
     for pdf in pdf_in_folder:
         new_images = PDF_to_images(os.path.join(path, pdf))
-        images_names += [os.path.splitext(pdf)[0]+ f"_{i}" for i in range(1,len(new_images)+1)]
-        images += new_images
+        pdf_dict = {}
+        for i, image in enumerate(new_images):
+            pdf_dict[f"image_{i}"] = image
+        scan_dict[os.path.splitext(pdf)[0]] = pdf_dict
     
     for image in image_in_folder:
-        new_images = np.array(cv2.imread(os.path.join(path,image)))
-        images_names += [os.path.splitext(image)[0]]
-        images.append(new_images)
-    return images, images_names
+        new_image = np.array(cv2.imread(os.path.join(path,image)))
+        scan_dict[os.path.splitext(new_images)[0]] = {"image_0" : new_image}
+
+    return scan_dict
 
 def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
     save_im_path = os.path.join(res_path, name + ".jpg")
@@ -53,7 +51,7 @@ def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
         result_file.write(xml.decode())
     plt.imsave(save_im_path, cropped_image)
     
-def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
+def TextCVTool(path, model, config = ["paddle", "structure", "en"]):
     """The final tool to use with the GUI
 
     Args:
@@ -61,46 +59,28 @@ def TextCVTool(path, def_format="", config = ["paddle", "structure", "en"]):
         custom_config (list, optional): tesseract config [oem, psm, whitelist, datatrain]
     """
     
-    images, images_names = getAllImages(path)
-    res_image, res_image_name = [], []
-    res_dict_per_image = {}
-    res_dict_per_image["CONFIG"] = config
-    res_dict_per_image["RESPONSE"] = {}
 
-    last_format = def_format
+    pdfs_res_dict = {
+        "PARAMETRE" : {
+            "model" : model,
+            "ocr" : config
+        }
+    }
 
-    for i in tqdm(range(len(images))):
-        print(" Start at : ", datetime.now().strftime("%H:%M:%S"))
-        image = images[i]
-        name = images_names[i]
-        bin_image = binarized_image(image)
-        rectangles = get_rectangles(bin_image)
-        format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, image, input_format=def_format)
+    scan_dict = getAllImages(path)
 
-        if format == "":
-            format = last_format
+    if model == "SEMAE":
+        from Model_SEMAE import main
         
-        last_format = format
+    if model == "Fredon":
+        from Model_Fredon import main
 
-        if format == "landscape":
-            landscape_dict_res = ProcessLandscape(cropped_image)
-            for dict_name, landscape_dict in landscape_dict_res.items():
-                res_dict_per_image["RESPONSE"][name+"_"+dict_name] = landscape_dict
-                res_image.append(image)
-                res_image_name.append(name+"_"+dict_name)
-        
-        else:
-            print(f"Le format de la fiche {name} est :", format)
-            res_image.append(image)
-            res_image_name.append(name)
-            zone_matches = textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER)
+    pdfs_res_dict["RESPONSE"] = main(scan_dict)
 
-            res_dict_per_image["RESPONSE"][name] = zone_matches
-
-    return res_image_name, res_dict_per_image, res_image
+    return scan_dict, pdfs_res_dict
 
 if __name__ == "__main__":
     
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\debug"
-    TextCVTool(path, def_format="")
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\test2"
+    TextCVTool(path, model="Fredon")

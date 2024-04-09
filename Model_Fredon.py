@@ -4,7 +4,9 @@ from copy import deepcopy
 from unidecode import unidecode
 import cv2
 import matplotlib.pyplot as plt
-import pandas as pd
+
+import sys
+import os
 
 import locale
 locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
@@ -16,12 +18,18 @@ from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes, 
 
 from JaroDistance import jaro_distance
 from ProcessCheckboxes import Template, get_checkboxes
-from ProcessPDF import  binarized_image
+from ProcessPDF import  binarized_image, get_rectangles, get_format_and_adjusted_image
+from ConditionFilter import condition_filter
 
-OCR_HELPER_JSON_PATH  = r"CONFIG\OCR_config.json"
+if 'AppData' in sys.executable:
+    application_path = os.getcwd()
+else : 
+    application_path = os.path.dirname(sys.executable)
+
+MODEL = "Fredon"
+OCR_HELPER_JSON_PATH  = os.path.join(application_path, "CONFIG\OCR_config.json")
 OCR_HELPER = json.load(open(OCR_HELPER_JSON_PATH, encoding="utf-8"))
-
-lists_df = pd.read_excel(r"CONFIG\\lists.xlsx")
+OCR_PATHES = OCR_HELPER["PATHES"]
 
 NULL_OCR = {"text" : "",
             "box" : [],
@@ -229,267 +237,6 @@ def get_area(cropped_image, box, relative_position, corr_ratio=1.1):
     (y_min, x_min) , (y_max, x_max) = np.array([[y_min, x_min], [y_max, x_max]]).astype(int)[:2]
     return x_min, y_min, x_max, y_max
 
-def _list_process(check_word, candidate_sequence, candidate_index):
-    """ 
-    Returned a dict wich carry the information about the best matched word among all sequences
-    """
-    max_jaro = 0.89
-    status_dict = {
-        "find" : False,
-        "index" : -1,
-        "jaro" : 0,
-        "word" : ""
-    }
-    for i_word, word in enumerate(candidate_sequence):
-        if word.strip(": _;").lower() == check_word.lower() :
-            status_dict["find"], status_dict["index"] = True, candidate_index[i_word]
-            status_dict["jaro"], status_dict["word"] = 1, check_word
-            return status_dict
-        
-        jaro = jaro_distance(word.lower(), check_word.lower())
-        if jaro > max_jaro:
-            status_dict["find"], status_dict["index"] = True, candidate_index[i_word]
-            status_dict["jaro"], status_dict["word"] = jaro, check_word
-
-    return status_dict
-
-def _after_key_process(bound_keys, candidates, similarity=0.9, skip=0):
-
-    def _get_wanted_seq(full_seq, target_words, search_range):
-        """
-        Find the place of the target_word and the following of the sentence after the word
-        
-        Return the index and new full sequence
-        """
-        res_index = 0
-        for target_word in target_words:
-            target_word = unidecode(target_word).lower()
-            for place in range(min(search_range+2, len(full_seq))):
-                word = unidecode(full_seq[place]).lower()
-                try:
-                    index = word.rindex(target_word)
-                    res_word = word[index+len(target_word):]
-                    if res_word == "" and place < len(full_seq)-1: # The target is at the end of a word
-                        res_index+=place
-                        full_seq = full_seq[place+1:]
-                        break
-                    if res_word == "" and place == len(full_seq)-1: # The target is at the end of the seq
-                        return -1, []
-                    
-                    full_seq[place] = res_word
-                    res_index+=place
-                    full_seq = full_seq[place:]
-                    break
-                
-                except ValueError:
-                    pass
-        
-        return res_index, full_seq
-    
-    strip = '().*:‘;,§"'+"'"
-    ref = {0:"start", 1:"end"}
-    key_boundaries = {"start" : [], "end" : []} 
-
-    # Get the all matched between keys and sequences for the start and the end key
-    for state, bound_key in enumerate(bound_keys):
-        for i_key, key_word in enumerate(bound_key):
-            for i_candidate, candidate_sequence in enumerate(candidates):
-                    for i_word, word in enumerate(candidate_sequence["text"]):
-                        word, key_word = unidecode(word).lower(), unidecode(key_word).lower()
-                        word_match = {"i_key" : -1,
-                                      "i_candidate" : -1,
-                                      "i_word" : -1} # Store the matching key index and the place on the candidate seq
-                        # If the rwo words are close
-                        if (jaro_distance(key_word, unidecode(word).strip(strip))>similarity):
-                            word_match["i_key"],  word_match["i_candidate"], word_match["i_word"] = i_key, i_candidate, i_word
-                            key_boundaries[ref[state]].append(word_match)
-                            break
-                        # If a sequence word is containing a key_word
-                        if len(key_word)>2 and key_word in word:
-                            word_match["i_key"],  word_match["i_candidate"], word_match["i_word"] = i_key, i_candidate, i_word
-                            key_boundaries[ref[state]].append(word_match)
-                            break
-    
-    if key_boundaries["start"] == [] :
-        if len(candidates)==1:
-            print("DEFAULT CASE :", candidates[0]["text"])
-            return [0], candidates[0]["text"]
-        return [], []
-
-    # Get boundaries of the desired text
-    _order_by_match_candidate = lambda match_list : sorted(match_list, 
-                                                key=lambda match : ([d["i_candidate"] for d in match_list].count(match["i_candidate"]), -match["i_candidate"]), 
-                                                                    reverse=True) # Most matched sentence, the firt one in case of tie
-   
-    last_start_match = sorted(_order_by_match_candidate(key_boundaries["start"]), key=lambda d:d["i_key"], reverse=True)[0]
-
-    if last_start_match["i_word"] == len(candidates[last_start_match["i_candidate"]]["text"])-1:
-        if last_start_match["i_candidate"] == len(candidates)-1:
-            return [], []
-        last_start_match["i_candidate"], last_start_match["i_word"] = last_start_match["i_candidate"]+1, 0
-
-    if key_boundaries["end"]==[]:
-        first_end_seq_id = deepcopy(last_start_match) # Equivalent to a mis match : Will be changed in the next step
-    else:
-        first_end_seq_id = sorted(_order_by_match_candidate(key_boundaries["end"]), key=lambda d:d["i_key"], reverse=False)[0]
-        # Empty field case
-        if (first_end_seq_id["i_candidate"], first_end_seq_id["i_word"]) == (last_start_match["i_candidate"], last_start_match["i_word"]):
-            return [],  []
- 
-    # If there is a mismatch, end is set as the sequence that followed the start
-    if first_end_seq_id["i_candidate"] <= last_start_match["i_candidate"] :
-        first_end_seq_id["i_candidate"] = min(last_start_match["i_candidate"]+1, len(candidates))
-        first_end_seq_id["i_word"] = 0
-
-    text_candidates = [candidates[i]["text"] for i in range(last_start_match["i_candidate"], first_end_seq_id["i_candidate"])]
-    text_candidates[0] = text_candidates[0][last_start_match["i_word"]:]
-
-    # Get all the found text as a list of string words
-    all_text = [word for text_candidate in text_candidates for word in text_candidate]
-    all_local_indices = [i for i,text in enumerate(text_candidates) for s in range(len(text))]
-
-    search_range = (len(bound_keys[0]) - last_start_match["i_key"]) # 0> if the last detected word is not the last key word 
-    target_words = [bound_keys[0][-1]] + ["(*):"]
-    
-    line_index, res_seq = _get_wanted_seq(all_text, target_words, search_range)
-
-    return [all_local_indices[line_index]], res_seq
-
-def condition_filter(candidates_dicts, condition):
-    """_summary_
-
-    Args:
-        candidates_dicts (_type_): _description_
-        key_main_sentences (_type_): _description_
-        conditions (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    strip =  "|\[]_!<>{}—;$€&*‘§—~-'(*):" + '"'
-    # Arbitrary set
-    candidates = deepcopy(candidates_dicts)
-    match_indices, res_seq = [], []
-
-    if condition[0] == "after_key":
-        bound_keys = condition[1] # Start and end key_sentences
-
-        match_indices, res_seq = _after_key_process(bound_keys, candidates)
-            
-    if condition[0] == "date": # Select a date format
-        for i_candidate, candidate in enumerate(candidates):
-            for i_word, word in enumerate(candidate["text"]):
-                word_init = word
-                try:
-                    word = word.lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
-                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
-                    match_indices, res_seq = [i_candidate], [word]
-                except ValueError:
-                    pass
-
-                try:
-                    word = word[:10].lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
-                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
-                    match_indices, res_seq = [i_candidate], [word]
-                except ValueError:
-                    pass
-                
-                try: # Case dd/mm/yy
-                    word = word.lower().strip(strip+"abcdefghijklmnopqrstuvwxyz")
-                    word = word[:-2] + "20" + word[-2:]
-                    _ = bool(datetime.strptime(word, "%d/%m/%Y"))
-                    match_indices, res_seq = [i_candidate], [word]
-                except ValueError:
-                    word = word_init
-
-                try: # Case month in letter
-                    word = word.lower().strip(strip)
-                    _ = bool(datetime.strptime(word, "%B"))
-                    full_date = "".join(candidate[i_word-1:i_word+2])
-                    _ = bool(datetime.strptime(full_date, "%d%B%Y"))
-                    match_indices, res_seq = [i_candidate], [word]
-                except:
-                    pass
-            
-    if condition[0] == "echantillon": # A special filter for numero d'echantillon
-        base1, base2 = year-1, year+2 # Thresholds
-        for i_candidate, candidate in enumerate(candidates):
-            if len(candidate["text"])<4:
-                for i_word, word in enumerate(candidate["text"]):
-                    if len(word)>3 and not "/" in word:
-                        try_list = [(base1-2000, base2-2000), (base1,base2)]
-                        for date_tuple in try_list:
-                            num1, num2 = date_tuple
-                            if word[:len(str(num1))].isnumeric():
-                                date_num, code_num = word[:len(str(num1))], word[len(str(num1)):].upper()
-                                if num1 <= int(date_num) < num2 : # Try to avoid strings shorter than NUM
-                                    res="".join(candidate["text"][i_word:])
-                                    res_upper = res.upper()
-                                    
-                                    # Replace common mistake
-                                    correction_list = [("MPA", "MP4"), ("N0", "NO"), ("AUOP", "AU0P"), ("CEOP", "CE0P"), ("GEL0", "GELO"), ("PLOP", "PL0P"), 
-                                        ("PLIP", "PL1P"), ("NCIP", "NC1P"), ("NCIE", "NC1E"), ("S0R", "SOR"), ("1F", "IF")]
-                                    for cor_tuple in correction_list:
-                                        error, correction = cor_tuple
-                                        if code_num[:len(error)] == error:
-                                            res_upper = res_upper.replace(error, correction, 1)
-                                            break # One possibility
-                                    if code_num[5:9] == "S0PDT": # Unique case
-                                        res_upper.replace("SP0DT", "SOPODT", 1)
-                                    
-                                    match_indices, res_seq = [i_candidate], [res_upper]
-                        if "GECA" in word:
-                            res_upper = str(year)+word if str(year) not in word else word
-                            try :
-                                if candidate["text"][i_word+1].isnumeric():
-                                    res_upper += candidate["text"][i_word+1]
-                            except:
-                                pass
-                            match_indices, res_seq = [i_candidate], [res_upper]
-
-    if condition[0] == "list": # In this case itertion is over element in the condition list
-        all_text, all_indices = [], []
-        matched_elmts = []
-        mode = condition[2]
-
-        for i_text, dict_text in enumerate(candidates):
-            all_text+=dict_text["text"]
-            all_indices+= [i_text for i in range(len(dict_text["text"]))]
-
-        check_list = list(lists_df[condition[1]].dropna())
-        for check_elmt in check_list:
-            found_elmts = []
-            check_words = check_elmt.split(" ")
-            for check_word in check_words:
-                found_dict = _list_process(check_word, all_text, all_indices)
-                if found_dict["find"]: # If a check word is found : stack it
-                    found_elmts.append(found_dict)
-        
-                if len(found_elmts) == len(check_words) and check_elmt not in [matched_elmt["element"] for matched_elmt in matched_elmts]: # All word of the checking elements are in the same candidate sequence                          print(check_elmt, jaro_elmt)
-                    
-                    matched_elmts.append({
-                                        "element": check_elmt,
-                                        "words" : found_elmts,
-                                        "jaro" : min([d["jaro"] for d in found_elmts]),
-                                        "index" : np.median(np.array([d["index"] for d in found_elmts], dtype=np.int64))
-                                        })
-        matched_elmts = sorted(matched_elmts, key=lambda x: x["index"])
-        
-        if matched_elmts:
-            if mode == "multiple": # Return all found elements sorted by index
-                res_seq, match_indices = [matched_elmt["element"] for matched_elmt in matched_elmts], [int(matched_elmt["index"]) for matched_elmt in matched_elmts]
-            if mode == "single":
-                matched_elmts = sorted(matched_elmts, key=lambda x: (x["jaro"], -x["index"]), reverse=True)
-                res_seq, match_indices = [matched_elmts[0]["element"]], [int(matched_elmts[0]["index"])]
-            
-    if condition[0] == "cell":
-        match_indices, res_seq = [], []
-        for i_text, dict_text in enumerate(candidates):
-            res_seq+=dict_text["text"]
-            match_indices+=[i_text]
-
-    return match_indices, res_seq
-    
 def get_checkboxes_table_format(checkbox_dict, area_image):
     TRANSFORM = [lambda x: x, lambda x: cv2.flip(x,0), lambda x: cv2.flip(x,1), lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (int(x.shape[1]*1.15), x.shape[0]))),
                 lambda x: binarized_image(cv2.resize(cv2.cvtColor(x, cv2.COLOR_GRAY2BGR), (x.shape[1], int(x.shape[0]*1.15))))]   
@@ -565,11 +312,11 @@ def _post_extraction_cleaning(text):
     
     return text
 
-def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=OCR_HELPER, local=False):
+def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=OCR_HELPER):
     zone_matches = {}
 
-    if format == "table":
-        checkbox_dict = JSON_HELPER["checkbox"][format]
+    if format == "Fredon tableau":
+        checkbox_dict = JSON_HELPER["PATHES"]["checkbox"][format]
         sorted_checkboxes = get_checkboxes_table_format(checkbox_dict, cropped_image)
 
     for zone, key_points in JSON_HELPER[format].items():
@@ -578,7 +325,7 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
         condition, relative_position = key_points["conditions"], key_points["relative_position"][i_key]
         xmin, ymin, xmax, ymax = box if key_match.confidence==-1 else get_area(cropped_image, box, relative_position, corr_ratio=1.15)
 
-        if format == "table" and zone in ["N_d_echantillon", "N_de_scelle"]:
+        if format == "Fredon tableau" and zone in ["N_d_echantillon", "N_de_scelle"]:
             if len(sorted_checkboxes)>0:
                 checkbox = sorted(sorted_checkboxes, key=lambda obj: obj["TOP_LEFT_Y"])[0]
                 up, down = checkbox["TOP_LEFT_Y"], checkbox["BOTTOM_RIGHT_Y"]
@@ -593,20 +340,20 @@ def get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JS
                 
         zone_match = ZoneMatch(candidate_dicts, [], 0, [])
 
-        if (format, zone) == ("check", "type_lot"):
+        if (format, zone) == ("Fredon avec cases", "type_lot"):
             # For now, SORE by default
             match_indices, res_seq = [0], ["SORE"]
                 
         else :
-            match_indices, res_seq = condition_filter(candidate_dicts, condition)
+            match_indices, res_seq = condition_filter(candidate_dicts, condition, model=MODEL, application_path=application_path, ocr_pathes=OCR_PATHES)
 
-        if (format, zone) == ("table", "parasite_recherche"):
+        if (format, zone) == ("Fredon tableau", "analyse"):
             match_indices, res_seq = get_para_table_format(sorted_checkboxes,res_seq, match_indices, candidate_dicts)
 
-        zone_match.match_indices , zone_match.res_seq = match_indices, res_seq
+        zone_match.match_indices, zone_match.res_seq = match_indices, res_seq
         zone_match.confidence = min([candidate_dicts[i]["proba"] for i in zone_match.match_indices]) if zone_match.match_indices else 0
 
-        if zone != "parasite_recherche":
+        if zone != "analyse":
             res_seq = " ".join(zone_match.res_seq).upper().strip(",_( ").lstrip(" ._-!*:-").strip(" ")
             zone_match.res_seq = _post_extraction_cleaning(res_seq)
 
@@ -656,16 +403,49 @@ def textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER):
         zone_matches = get_wanted_text(cropped_image, zone_key_match_dict, format, full_img_OCR, JSON_HELPER=JSON_HELPER)
         
     return zone_matches
-            
+
+def main(scan_dict):
+    
+    pdfs_res_dict = {}
+    last_format = "Fredon sans case"
+
+    for pdf, images_dict in scan_dict.items():
+        print("###### Traitement de :", pdf, " ######")
+        pdfs_res_dict[pdf] = {}
+        for i_image, (image_name, sample_image) in enumerate(list(images_dict.items())):
+            print("--------------", image_name, "--------------")
+
+            bin_image = binarized_image(sample_image) 
+            rectangles = get_rectangles(bin_image)
+    
+            # Extract the found format and the image
+            format, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, sample_image, input_format="")
+
+            # Communicate the last format to the new one if no one found
+            if format:
+                last_format = format
+            else:
+                format = last_format
+
+            print(f"Le format de la fiche {pdf}_sample{i_image} est :", format)
+        
+            sample_matches = textExtraction(format, cropped_image, JSON_HELPER=OCR_HELPER)
+
+            pdfs_res_dict[pdf][f"sample_{i_image}"] = {"IMAGE" : image_name,
+                                "EXTRACTION" : sample_matches} # Image Name
+
+    return pdfs_res_dict
+   
 if __name__ == "__main__":
     from ProcessCheckboxes import  Template
     from ProcessPDF import PDF_to_images, binarized_image, get_rectangles, get_format_and_adjusted_image
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan11.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan5.pdf"
     images = PDF_to_images(path)
+    
     start = 0
-    images = images[4:]
+    images = images[:]
     res_dict_per_image = {}
     for i, image in enumerate(images,start+1):
         print(f"\n -------------{i}----------------- \nImage {i} is starting")
