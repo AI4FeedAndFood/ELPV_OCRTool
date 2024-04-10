@@ -11,7 +11,7 @@ from screeninfo import get_monitors
 from PIL import Image
 
 from LaunchTool import getAllImages, TextCVTool
-from SaveDict import runningSave, finalSaveDict
+from SaveDict import runningSave, finalSaveDict, saveToCopyFolder
 
 def is_valid(folderpath, model):
 
@@ -525,6 +525,8 @@ def main():
                                             json_file.close() # Close the file
                                             finalSaveDict(final_dict["RESPONSE"], xml_save_path, analysis_lims=MODEL_ANALYSIS, model=MODEL, lims_helper=LIMS_HELPER,
                                                             client_contract=CLIENT_CONTRACT)
+                                            if LIMS_HELPER["TOOL_PATH"]["copy_folder"]:
+                                                saveToCopyFolder(LIMS_HELPER["TOOL_PATH"]["copy_folder"], os.path.join(givenPath, pdf_name+".pdf"), rename=pdf_name+"AA")
                                             VerificationWindow.close()
                                             return
                                         

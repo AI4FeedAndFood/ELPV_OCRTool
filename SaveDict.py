@@ -1,7 +1,7 @@
 import os
 import dicttoxml
 import json
-import re
+from shutil import copyfile
 from copy import deepcopy
 from datetime import datetime
 
@@ -293,6 +293,21 @@ def mergeOrderSamples(stacked_samples_dict, merge_condition="Order.ContractCode"
             stacked_merged_dict.append(sample_dict)
 
     return stacked_merged_dict, added_number
+
+def saveToCopyFolder(save_folder, pdf_path, rename="", mode="same"):
+    if save_folder:
+        if not os.path.exists(save_folder):
+            os.makedirs(save_folder)
+
+        base, extension = os.path.splitext(os.path.split(pdf_path)[1])
+
+        if rename:
+            base=rename
+        
+        if mode == "same":
+            new_name = base+extension
+
+        copyfile(pdf_path, f"{save_folder}/{new_name}")
 
 def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_helper, client_contract, xml_name="verified_XML"):
     def _rename_sample(xml, added_number):
