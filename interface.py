@@ -412,17 +412,17 @@ def main():
                     X_loc, Y_loc = (10,10)
 
                     # Last PDF
-                    n_pdf_end = len(list(pdfs_res_dict.keys()))
+                    n_last_pdf = len(list(pdfs_res_dict.keys()))
                     
                     # Last pdf, last sample
-                    last_sample = (n_pdf_end-1, len(list(pdfs_res_dict[list(pdfs_res_dict.keys())[-1]].keys()))-1)
+                    last_sample = (n_last_pdf-1, len(list(pdfs_res_dict[list(pdfs_res_dict.keys())[-1]].keys()))-1)
 
-                    while n_pdf < n_pdf_end:
+                    while n_pdf < n_last_pdf:
                         pdf_name, samples_res_dict = list(pdfs_res_dict.items())[n_pdf]
                         # last sample of the pdf
-                        n_sample_end = len(samples_res_dict.keys())
-                        
-                        while n_sample < n_sample_end:
+                        n_last_sample_by_pdf = len(samples_res_dict.keys())
+
+                        while n_sample < n_last_sample_by_pdf:
                             sample_name, sample_image_extract = list(samples_res_dict.items())[n_sample]
                             # Identify the current sample
                             n_place = (n_pdf, n_sample)
@@ -484,7 +484,7 @@ def main():
                                     
                                     VerificationWindow.Enable()
                                     VerificationWindow.SetAlpha(1)
-                                    
+
                                 if verif_event == "<- Retour":
                                     if n_pdf>0 or n_sample>0:
                                         runningSave(res_dict, res_save_path, verif_values, pdf_name, sample_name)
@@ -493,7 +493,9 @@ def main():
                                         # If it's from the past pdf change the pdf number
                                         if n_pdf>0 and n_sample==-1:
                                             n_pdf-=1
-                                            n_sample = 0
+                                            n_sample = len(list(pdfs_res_dict.items())[n_pdf][1].keys())-1
+                                            n_place = (n_pdf, n_sample)
+
                                         n_place = (n_pdf, n_sample)  
 
                                 if verif_event == "Valider ->":
@@ -530,9 +532,10 @@ def main():
                                             VerificationWindow.close()
                                             return
                                         
-                        # If n_sample exceed the n_sample_end, go to the next one from the folowing pdf
-                        n_sample = 0
-                        n_pdf+=1
+                        # If n_sample exceed the n_last_sample_by_pdf, go to the next one from the folowing pdf
+                        if verif_event == "Valider ->":
+                            n_sample = 0
+                            n_pdf+=1
 
                     if VerificationWindow :  VerificationWindow.close()
                     if SuggestionW : SuggestionW.close()

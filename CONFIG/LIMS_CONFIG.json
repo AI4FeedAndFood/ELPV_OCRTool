@@ -1,8 +1,10 @@
 {
     "TOOL_PATH" : {
         "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1",
-        "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS"
+        "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS",
+        "copy_folder" : ""
     },
+
     "CLEAN_ZONE_NAMES" : {
         "N_d_echantillon" : "Numero d'echantillon",
         "date_de_prelevement" : "Date de prelevement",
@@ -29,6 +31,12 @@
         "Betterave": "01305"},
 
     "LIMS_CONVERTER" :   {
+        "Nom" : {
+            "path" : "Order.Name",
+            "input": "HARDCODE",
+            "value" : "Fredon"
+        },
+
         "RecipientLabCode" : {
             "path" : "Order.RecipientLabCode",
             "input": "HARDCODE",
@@ -88,37 +96,42 @@
         },
 
         "DatePrelevement" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.A",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.LL034",
             "input": "date_de_prelevement"
         },
 
-        "Nom" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.B",
+        "NomProducteur" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.N9991",
             "input": "nom"
         },
 
         "Variete" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.C",
-            "input": "Variete"
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA036",
+            "input": "variete"
         },
+
         "LocalisationPrelevement" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.D",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP004",
             "input": "localisation_prelevement"
         },
+
         "PaysOrigine" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.E",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA075",
             "input": "pays_d_origine"
         },
+
         "NumeroScelle" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.F",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA235",
             "input": "N_de_scelle"
         },
+
         "NumeroLot" :{
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.G",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAM008",
             "input": "N_de_lot"
         },
+        
         "TypeLot" :{
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.H",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP001",
             "input": "type_lot"
         }
     },
