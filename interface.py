@@ -557,7 +557,7 @@ if __name__ == "__main__":
     LIMS_HELPER_JSON_PATH  = os.path.join(application_path, "CONFIG\LIMS_CONFIG.json")
     LIMS_HELPER= json.load(open(LIMS_HELPER_JSON_PATH))
 
-    CLIENT_CONTRACT = pd.read_excel(os.path.join(application_path, OCR_HELPER["PATHES"]["contract_analysis_path"]), sheet_name='client_contract').fillna("")
+    CLIENT_CONTRACT = pd.read_excel(os.path.join(application_path, OCR_HELPER["PATHES"]["contract_analysis_path"]), sheet_name='client_contract', dtype=str).fillna("")
     clientName, contractName = CLIENT_CONTRACT.iloc[0]["ClientName"], CLIENT_CONTRACT.iloc[0]["ContractName"]
     row = CLIENT_CONTRACT[(CLIENT_CONTRACT["ClientName"]==clientName) & (CLIENT_CONTRACT["ContractName"]==contractName)]
     CLIENT_LIST = list(CLIENT_CONTRACT["ClientName"].unique())

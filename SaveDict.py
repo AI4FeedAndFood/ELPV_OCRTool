@@ -82,18 +82,22 @@ def keepNeededFields(verified_dict, client_contract, model, to_keep_field=[], ad
 
     # Find the Contract and the quotation according to the data
     clientName, contractName = verified_dict["client_name"], verified_dict["contract_name"]
-    corresponding_row = client_contract[(client_contract["ClientName"]==clientName) & (client_contract["ContractName"]==contractName)]
-    CustomerCode, Contractcode, QuotationCode = list(corresponding_row["CustomerCode"])[0], list(corresponding_row["ContractCode"])[0], list(corresponding_row["QuotationCode"])[0]
+    corresponding_row = client_contract[(client_contract["ClientName"]==clientName) & (client_contract["ContractName"]==contractName)].fillna(value="")
+    CustomerCode, Contractcode, QuotationCode, LegalCommitment = corresponding_row[["CustomerCode", "ContractCode", "QuotationCode", "LegalCommitment"]].values.tolist()[0]
+    if not LegalCommitment:
+        LegalCommitment = clientName + "_" + str(datetime.now().date())
 
     if len(corresponding_row) == 1:
         sample_clean_dict["Name"] = clientName
         sample_clean_dict["CustomerCode"] = CustomerCode
         sample_clean_dict["ContractCode"] = Contractcode
         sample_clean_dict["QuotationCode"] = QuotationCode
+        sample_clean_dict["LegalCommitment"] = LegalCommitment
     else :
         sample_clean_dict["CustomerCode"] = ""
         sample_clean_dict["ContractCode"] = ""
         sample_clean_dict["QuotationCode"] = ""
+        sample_clean_dict["LegalCommitment"] = ""
     
     return sample_clean_dict
 
@@ -202,7 +206,13 @@ def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
                 value = sample_dict[input]
 
             elif type(input) == type([]):
-                value = convert_dict["join"].join([sample_dict[inp] for inp in input])
+                
+                # Implemented cases
+                input = [inp if inp!="DATE" else str(datetime.now().date()) for inp in input]
+                
+                # If the input not in key the input i hardcoded
+                sample_dict_keys = list(sample_dict.keys())
+                value = convert_dict["join"].join([sample_dict[inp] if inp in sample_dict_keys else inp for inp in input])
 
             elif input == "HARDCODE":
                 value = convert_dict["value"]
@@ -359,11 +369,47 @@ def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_help
 if __name__ == "__main__":
     import pandas as pd
 
-    verified_dict ={'scan2': {'sample_0': {'IMAGE': 'image_0', 'EXTRACTION': {'N_d_echantillon': {'sequence': '2023CE0P0204', 'confidence': 0.9996132850646973, 'area': [1407, 138, 2208, 407]}, 'date_de_prelevement': {'sequence': '05/04/2023', 'confidence': 0.9705235362052917, 'area': [1361, 397, 2208, 604]}, 'nom': {'sequence': 'FLORIAN HUET', 'confidence': 0.989113450050354, 'area': [0, 751, 1226, 930]}, 'type_lot': {'sequence': 'Export', 'confidence': 0.9693678021430969, 'area': [0, 1245, 1887, 1663]}, 'variete': {'sequence': 'LUCINDA', 'confidence': 0.9836945533752441, 'area': [0, 1555, 1404, 2097]}, 'localisation_prelevement': {'sequence': '48.04851 1.52596', 'confidence': 0.9877217411994934, 'area': [910, 1129, 2208, 1422]}, 'N_de_scelle': {'sequence': 'EF 037043', 'confidence': 0.9678769707679749, 'area': [962, 1223, 2208, 1478]}, 'N_de_lot': {'sequence': '55359', 'confidence': 0.9169824719429016, 'area': [918, 1312, 2208, 1567]}, 'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9709869623184204, 'area': [864, 1396, 2208, 1583]}, 'analyse': {'sequence': ['Globodera pallida', 'Globodera rostochiensis'], 'confidence': 0.999325156211853, 'area': [154, 1867, 2208, 2372]}, 'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '9', 'n_end': '11', 'with_0': True}}, 'sample_1': {'IMAGE': 'image_1', 'EXTRACTION': {'N_d_echantillon': {'sequence': '2023PL0P4009', 'confidence': 0.9994108080863953, 'area': [1375, 16, 2255, 565]}, 'date_de_prelevement': {'sequence': '05/04/2023', 'confidence': 0.9656428694725037, 'area': [1350, 212, 2255, 609]}, 'nom': {'sequence': 'SCEA LE PALAINEAU - BERLAND SIMON ', 'confidence': 0.971758246421814, 'area': [0, 645, 1469, 914]}, 'type_lot': {'sequence': 'Surveillance', 'confidence': 0.9851096868515015, 'area': [0, 1009, 2255, 1368]}, 'variete': {'sequence': 'AGRIA', 'confidence': 0.9197232127189636, 'area': [0, 1473, 2224, 1966]}, 'localisation_prelevement': {'sequence': '', 'confidence': 0.0, 'area': [931, 927, 2255, 1717]}, 'N_de_scelle': {'sequence': '904', 'confidence': 0.9472717046737671, 'area': [953, 1043, 2255, 1678]}, 'N_de_lot': {'sequence': '57562 (12,5 T)', 'confidence': 0.955173671245575, 'area': [701, 1137, 2255, 1782]}, 'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9385799765586853, 'area': [807, 1251, 2255, 1462]}, 'analyse': {'sequence': ['Meloidogyne chitwoodi', 'Meloidogyne fallax', 'Meloidogyne enterolobii'], 'confidence': 0.98012375831604, 'area': [535, 1785, 2215, 3131]}, 'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '9', 'n_end': '11', 'with_0': False}}, 'sample_2': {'IMAGE': 'image_2', 'EXTRACTION': {'N_d_echantillon': {'sequence': '2023NOPDT052460', 'confidence': 0.9964833855628967, 'area': [1468, 23, 2308, 682]}, 'date_de_prelevement': {'sequence': '13/04/2023', 'confidence': 0.9999819993972778, 'area': [1457, 352, 2308, 755]}, 'nom': {'sequence': 'SCEA ALBAN CRAQUELIN ', 'confidence': 0.983180046081543, 'area': [0, 711, 1438, 959]}, 'type_lot': {'sequence': 'Export', 'confidence': 0.9602630138397217, 'area': [0, 1011, 2292, 1225]}, 'variete': {'sequence': 'JAZZY', 'confidence': 0.9681994915008545, 'area': [0, 1331, 2187, 1786]}, 'localisation_prelevement': {'sequence': '76258', 'confidence': 0.9736239910125732, 'area': [971, 925, 2308, 1756]}, 'N_de_scelle': {'sequence': '052460', 'confidence': 0.8888764381408691, 'area': [989, 985, 2308, 1720]}, 'N_de_lot': {'sequence': 'N° PRODUCTEUR: 50525 CLASSE: B CALIBRE: 30/40', 'confidence': 0.9429509043693542, 'area': [743, 1042, 2308, 1725]}, 'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9839634895324707, 'area': [888, 1201, 2308, 1397]}, 'analyse': {'sequence': ['PVY', 'Jambe noire', 'PLRV', 'Rhizomanie'], 'confidence': 0.9789810180664062, 'area': [461, 1485, 1615, 3135]}, 'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '', 'n_end': '', 'with_0': False}}}}
+    verified_dict ={'scan2': {'sample_0': 
+                              {'IMAGE': 'image_0', 
+                               'EXTRACTION': {'N_d_echantillon': {'sequence': '2023CE0P0204', 'confidence': 0.9996132850646973, 'area': [1407, 138, 2208, 407]}, 
+                                              'date_de_prelevement': {'sequence': '05/04/2023', 'confidence': 0.9705235362052917, 'area': [1361, 397, 2208, 604]}, 
+                                              'nom': {'sequence': 'FLORIAN HUET', 'confidence': 0.989113450050354, 'area': [0, 751, 1226, 930]}, 
+                                              'type_lot': {'sequence': 'Export', 'confidence': 0.9693678021430969, 'area': [0, 1245, 1887, 1663]}, 
+                                              'variete': {'sequence': 'LUCINDA', 'confidence': 0.9836945533752441, 'area': [0, 1555, 1404, 2097]}, 
+                                              'localisation_prelevement': {'sequence': '48.04851 1.52596', 'confidence': 0.9877217411994934, 'area': [910, 1129, 2208, 1422]}, 
+                                              'N_de_scelle': {'sequence': 'EF 037043', 'confidence': 0.9678769707679749, 'area': [962, 1223, 2208, 1478]}, 
+                                              'N_de_lot': {'sequence': '55359', 'confidence': 0.9169824719429016, 'area': [918, 1312, 2208, 1567]}, 
+                                              'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9709869623184204, 'area': [864, 1396, 2208, 1583]}, 
+                                              'analyse': {'sequence': ['Globodera pallida', 'Globodera rostochiensis'], 'confidence': 0.999325156211853, 'area': [154, 1867, 2208, 2372]}, 
+                                              'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '9', 'n_end': '11', 'with_0': True}}, 
+                                'sample_1': {'IMAGE': 'image_1', 'EXTRACTION': 
+                                             {'N_d_echantillon': {'sequence': '2023PL0P4009', 'confidence': 0.9994108080863953, 'area': [1375, 16, 2255, 565]}, 
+                                            'date_de_prelevement': {'sequence': '05/04/2023', 'confidence': 0.9656428694725037, 'area': [1350, 212, 2255, 609]}, 
+                                            'nom': {'sequence': 'SCEA LE PALAINEAU - BERLAND SIMON ', 'confidence': 0.971758246421814, 'area': [0, 645, 1469, 914]}, 
+                                            'type_lot': {'sequence': 'Surveillance', 'confidence': 0.9851096868515015, 'area': [0, 1009, 2255, 1368]}, 
+                                            'variete': {'sequence': 'AGRIA', 'confidence': 0.9197232127189636, 'area': [0, 1473, 2224, 1966]}, 
+                                            'localisation_prelevement': {'sequence': '', 'confidence': 0.0, 'area': [931, 927, 2255, 1717]}, 
+                                            'N_de_scelle': {'sequence': '904', 'confidence': 0.9472717046737671, 'area': [953, 1043, 2255, 1678]}, 
+                                            'N_de_lot': {'sequence': '57562 (12,5 T)', 'confidence': 0.955173671245575, 'area': [701, 1137, 2255, 1782]}, 
+                                            'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9385799765586853, 'area': [807, 1251, 2255, 1462]}, 
+                                            'analyse': {'sequence': ['Meloidogyne chitwoodi', 'Meloidogyne fallax', 'Meloidogyne enterolobii'], 'confidence': 0.98012375831604, 'area': [535, 1785, 2215, 3131]},
+                                            'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '9', 'n_end': '11', 'with_0': False}}, 
+                                'sample_2': {'IMAGE': 'image_2', 'EXTRACTION': 
+                                             {'N_d_echantillon': {'sequence': '2023NOPDT052460', 'confidence': 0.9964833855628967, 'area': [1468, 23, 2308, 682]}, 
+                                              'date_de_prelevement': {'sequence': '13/04/2023', 'confidence': 0.9999819993972778, 'area': [1457, 352, 2308, 755]}, 
+                                              'nom': {'sequence': 'SCEA ALBAN CRAQUELIN ', 'confidence': 0.983180046081543, 'area': [0, 711, 1438, 959]}, 
+                                              'type_lot': {'sequence': 'Export', 'confidence': 0.9602630138397217, 'area': [0, 1011, 2292, 1225]}, 
+                                              'variete': {'sequence': 'JAZZY', 'confidence': 0.9681994915008545, 'area': [0, 1331, 2187, 1786]}, 
+                                              'localisation_prelevement': {'sequence': '76258', 'confidence': 0.9736239910125732, 'area': [971, 925, 2308, 1756]}, 
+                                              'N_de_scelle': {'sequence': '052460', 'confidence': 0.8888764381408691, 'area': [989, 985, 2308, 1720]}, 
+                                              'N_de_lot': {'sequence': 'N° PRODUCTEUR: 50525 CLASSE: B CALIBRE: 30/40', 'confidence': 0.9429509043693542, 'area': [743, 1042, 2308, 1725]}, 
+                                              'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9839634895324707, 'area': [888, 1201, 2308, 1397]}, 
+                                              'analyse': {'sequence': ['PVY', 'Jambe noire', 'PLRV', 'Rhizomanie'], 'confidence': 0.9789810180664062, 'area': [461, 1485, 1615, 3135]}, 
+                                              'client_name': 'DRAAF SRAL CENTRE VAL DE LOIRE', 'contract_name': 'PDT - CONTRAT ELPV 2023 DRAAF SRAL CENTRE / FREDON', 'n_start': '', 'n_end': '', 'with_0': False}}}}
     OCR_HELPER = json.load(open("CONFIG\OCR_config.json"))
 
 
-    client_contract =  pd.read_excel(r"CONFIG\\eLIMS_contract_analysis.xlsx", sheet_name="client_contract")
+    client_contract =  pd.read_excel(r"CONFIG\\eLIMS_contract_analysis.xlsx", sheet_name="client_contract", dtype=str)
     xml_save_path = "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1"
     model = "Fredon"
     analysis_lims = pd.read_excel(r"CONFIG\\eLIMS_contract_analysis.xlsx", sheet_name="analyse")

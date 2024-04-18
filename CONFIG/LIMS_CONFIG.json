@@ -1,8 +1,9 @@
 {
     "TOOL_PATH" : {
-        "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1",
-        "output_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\XMLS",
-        "copy_folder" : ""
+        "input_folder" : "",
+        "output_folder" : "\\\\itiz-ft-fr.local\\AAG010\\Shared\\B2BPreprod\\Orders\\Eurofins_OCR_Tool",
+        "copy_folder" : "",
+        "scan_email_sender" : "" 
     },
 
     "CLEAN_ZONE_NAMES" : {
@@ -36,7 +37,6 @@
             "input": "HARDCODE",
             "value" : "Fredon"
         },
-
         "RecipientLabCode" : {
             "path" : "Order.RecipientLabCode",
             "input": "HARDCODE",
@@ -46,27 +46,31 @@
             "path" : "Order.CustomerCode",
             "input": "CustomerCode"
         },
-
         "QuotationCode" : {
             "path" : "Order.QuotationCode",
             "input": "QuotationCode"
         },
-
         "ContractCode" : {
             "path" : "Order.ContractCode",
             "input": "ContractCode"
         },
-
+        "LegalCommitment" : {
+            "path" : "Order.Comment",
+            "input": "LegalCommitment"
+        },
+        "PurchaseOrderReference" : {
+            "path" : "Order.PurchaseOrderReference",
+            "input": ["client_name", "DATE"],
+            "join" : " - "
+        },
         "CustomerReference" : {
             "path" : "Order.Samples.Sample.CustomerReference",
             "input": "N_d_echantillon"
-        },
-        
+        },        
         "SampleDescription" : {
             "path" : "Order.Samples.Sample.Description",
             "input": "code_produit"
         },
-
         "FractionCode" : {
             "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.FractionCode",
             "input": "HARDCODE",
@@ -84,52 +88,38 @@
             "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.TestCode",
             "input": "TestCode"
         },
-
         "PackageCode" : {
             "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.PackageCode",
             "input": "PackageCode"
         },
-
-        "EngamentJuridique" : {
-            "path" : "",
-            "input": "EngagementJuridique"
-        },
-
         "DatePrelevement" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.LL034",
             "input": "date_de_prelevement"
         },
-
         "NomProducteur" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.N9991",
             "input": "nom"
         },
-
         "Variete" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA036",
             "input": "variete"
         },
-
         "LocalisationPrelevement" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP004",
             "input": "localisation_prelevement"
         },
-
         "PaysOrigine" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA075",
             "input": "pays_d_origine"
         },
-
         "NumeroScelle" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAA235",
             "input": "N_de_scelle"
         },
-
         "NumeroLot" :{
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.AAM008",
             "input": "N_de_lot"
-        },
-        
+        },        
         "TypeLot" :{
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP001",
             "input": "type_lot"

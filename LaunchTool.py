@@ -75,7 +75,7 @@ def saveCVTool(res_path, name, cropped_image, OCR_and_text_full_dict):
         result_file.write(xml.decode())
     plt.imsave(save_im_path, cropped_image)
     
-def TextCVTool(path, model, config = ["paddle", "structure", "en"]):
+def TextCVTool(path, model, config = ["paddle", "structure", "en"], email_sender=""):
     """The final tool to use with the GUI
 
     Args:
@@ -90,6 +90,9 @@ def TextCVTool(path, model, config = ["paddle", "structure", "en"]):
             "ocr" : config
         }
     }
+
+    if email_sender:
+        extractFromMailBox(path, SenderEmailAddress=email_sender, n_message_stop=10)
 
     scan_dict = getAllImages(path)
 

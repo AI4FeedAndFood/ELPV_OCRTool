@@ -13,8 +13,7 @@ locale.setlocale(locale.LC_TIME,'fr_FR.UTF-8')
 from datetime import datetime
 year = datetime.now().year
 
-from paddleocr import PPStructure, PaddleOCR
-from paddleocr.ppstructure.recovery.recovery_to_doc import sorted_layout_boxes, convert_info_docx
+from paddleocr import PaddleOCR
 
 from JaroDistance import jaro_distance
 from ProcessCheckboxes import Template, get_checkboxes
@@ -65,7 +64,7 @@ def paddle_OCR(image):
                     }
                     model_dict["text"] = t[1][0]
                     model_dict["box"] = t[0][0]+t[0][2]
-                    model_dict["proba"] = t[1][1]
+                    model_dict["proba"] = round(t[1][1],ndigits=5)
                     res.append(model_dict)
         
         return res
@@ -441,7 +440,7 @@ if __name__ == "__main__":
     from ProcessPDF import PDF_to_images, binarized_image, get_rectangles, get_format_and_adjusted_image
 
     print("start")
-    path = r"C:\Users\CF6P\Desktop\ELPV\Data\scan5.pdf"
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\test1\test fda.pdf"
     images = PDF_to_images(path)
     
     start = 0
