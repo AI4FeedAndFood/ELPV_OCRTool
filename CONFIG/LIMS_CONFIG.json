@@ -93,11 +93,11 @@
             "input": "PackageCode"
         },
         "DatePrelevement" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.LL034",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.M005",
             "input": "date_de_prelevement"
         },
         "NomProducteur" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.N9991",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.LN478",
             "input": "nom"
         },
         "Variete" : {
@@ -121,7 +121,7 @@
             "input": "N_de_lot"
         },        
         "TypeLot" :{
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP001",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.BR9M001",
             "input": "type_lot"
         }
     },
