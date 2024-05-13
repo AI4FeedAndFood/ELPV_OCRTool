@@ -29,8 +29,6 @@ def extractFromMailBox(savePath, SenderEmailAddress, n_message_stop=10):
         try:
             n_message+=1
             if message.Unread:
-                attachments = message.Attachments
-                attachment = attachments.Item(1)
                 for attachment in message.Attachments:
                     attachment.SaveAsFile(os.path.join(savePath, str(attachment.FileName)))
                     if message.Unread:

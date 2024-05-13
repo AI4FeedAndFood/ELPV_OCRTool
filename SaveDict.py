@@ -19,9 +19,18 @@ def _update_dict(stack_dict, value, keys_path):
     return
 
 def _get_dict_value(dict, keys_path):
+
     value = dict
+
     for key in keys_path.split("."):
-        value = value[key]
+
+        try:
+            value = value[key]
+        
+        # If the key not in the dict
+        except KeyError:
+            return False
+        
     return value
 
 def runningSave(res_dict, save_path_json, verif_values, pdf_name, sample_name):
@@ -76,6 +85,7 @@ def keepNeededFields(verified_dict, client_contract, model, to_keep_field=[], ad
             sample_clean_dict[key] = value["sequence"]
         if key in to_keep_field:
             sample_clean_dict[key]=value
+
     # Add the code_produit
     if "code_produit" in sample_clean_dict.keys():
         sample_clean_dict["code_produit"] = verified_dict["code_produit"]["sequence"].split(": ")[1] if verified_dict["code_produit"]["sequence"] else ""
@@ -83,22 +93,21 @@ def keepNeededFields(verified_dict, client_contract, model, to_keep_field=[], ad
     # Find the Contract and the quotation according to the data
     clientName, contractName = verified_dict["client_name"], verified_dict["contract_name"]
     corresponding_row = client_contract[(client_contract["ClientName"]==clientName) & (client_contract["ContractName"]==contractName)].fillna(value="")
-    CustomerCode, Contractcode, QuotationCode, LegalCommitment = corresponding_row[["CustomerCode", "ContractCode", "QuotationCode", "LegalCommitment"]].values.tolist()[0]
+
+    if len(corresponding_row)==1:
+        CustomerCode, Contractcode, QuotationCode, LegalCommitment = corresponding_row[["CustomerCode", "ContractCode", "QuotationCode", "LegalCommitment"]].values.tolist()[0]
+    else:
+        CustomerCode, Contractcode, QuotationCode, LegalCommitment = "", "", "", ""
+    
     if not LegalCommitment:
         LegalCommitment = clientName + "_" + str(datetime.now().date())
 
-    if len(corresponding_row) == 1:
-        sample_clean_dict["Name"] = clientName
-        sample_clean_dict["CustomerCode"] = CustomerCode
-        sample_clean_dict["ContractCode"] = Contractcode
-        sample_clean_dict["QuotationCode"] = QuotationCode
-        sample_clean_dict["LegalCommitment"] = LegalCommitment
-    else :
-        sample_clean_dict["CustomerCode"] = ""
-        sample_clean_dict["ContractCode"] = ""
-        sample_clean_dict["QuotationCode"] = ""
-        sample_clean_dict["LegalCommitment"] = ""
-    
+    sample_clean_dict["Name"] = clientName
+    sample_clean_dict["CustomerCode"] = CustomerCode
+    sample_clean_dict["ContractCode"] = Contractcode
+    sample_clean_dict["QuotationCode"] = QuotationCode
+    sample_clean_dict["LegalCommitment"] = LegalCommitment
+
     return sample_clean_dict
 
 def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
@@ -179,7 +188,7 @@ def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
     xmls_format_dict = []
 
     for sample_dict in stacked_samples_dict:
-
+        
         sample_XML_dict = {}
 
         # Give all new items to the sample dict
@@ -199,9 +208,11 @@ def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
         input_keys = list(sample_dict.keys())
         
         for name, convert_dict in lims_converter.items():
+            
             value = None
             path, input = convert_dict["path"], convert_dict["input"]
             keys_path = path.split(".")
+
             if input in input_keys:
                 value = sample_dict[input]
 
@@ -220,7 +231,16 @@ def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
             if value:
                 _update_dict(sample_XML_dict, value, keys_path)
         
-        xmls_format_dict.append(sample_XML_dict)
+        # Warning if not client or contract
+        if not _get_dict_value(sample_XML_dict, "Order.CustomerCode") or not _get_dict_value(sample_XML_dict, "Order.ContractCode"):
+            customerRef =  _get_dict_value(sample_XML_dict, "Order.Samples.Sample.CustomerReference")
+            if customerRef:
+                print(f"PAS DE CLIENT TROUVE POUR : {customerRef}, A CODER MANUELLEMENT")
+            else :
+                print(f"PAS DE CLIENT TROUVE")
+
+        else:
+            xmls_format_dict.append(sample_XML_dict)
         
     return xmls_format_dict
 
@@ -278,7 +298,7 @@ def arrangeForClientSpecificites(stacked_samples_dict, analysis_lims, model):
 def mergeOrderSamples(stacked_samples_dict, merge_condition="Order.ContractCode"):
     
     def _merge_bool(merged_dict, sample_dict, merge_condition):
-        # 
+
         if type(merge_condition) == type([]):
             return all([_get_dict_value(merged_dict, condi) == _get_dict_value(sample_dict, condi) for condi in merge_condition])
         else :
@@ -288,6 +308,7 @@ def mergeOrderSamples(stacked_samples_dict, merge_condition="Order.ContractCode"
     added_number = []
     for sample_dict in stacked_samples_dict:
         merged = False
+        
         for i_dict, merged_dict in enumerate(stacked_merged_dict):
 
             # Merge samples by common 
@@ -350,6 +371,7 @@ def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_help
     # Then convert each dict as XML
     xml_names = []
     for sample_dict in xmls_merged_dict:
+
         xml_name = "_".join([_get_dict_value(sample_dict, "Order.RecipientLabCode"), pdf_name, datetime.today().strftime('%Y%m%d')])
         # Set the name of the XML : BU_REF_YYMMDD_N
         num = 0
@@ -381,7 +403,7 @@ if __name__ == "__main__":
                                               'N_de_lot': {'sequence': '55359', 'confidence': 0.9169824719429016, 'area': [918, 1312, 2208, 1567]}, 
                                               'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9709869623184204, 'area': [864, 1396, 2208, 1583]}, 
                                               'analyse': {'sequence': ['Globodera pallida', 'Globodera rostochiensis'], 'confidence': 0.999325156211853, 'area': [154, 1867, 2208, 2372]}, 
-                                              'client_name': 'DRAAF SRAL PACA', 'contract_name': 'Contrat Loos 2018 SRAL PACA', 'n_start': '9', 'n_end': '11', 'with_0': True}}, 
+                                              'client_name': 'FREDON HDF', 'contract_name': 'PDT - 2023 FREDON/SRAL HF  Surv territoire', 'n_start': '9', 'n_end': '11', 'with_0': True}}, 
                                 'sample_1': {'IMAGE': 'image_1', 'EXTRACTION': 
                                              {'N_d_echantillon': {'sequence': '2023PL0P4009', 'confidence': 0.9994108080863953, 'area': [1375, 16, 2255, 565]}, 
                                             'date_de_prelevement': {'sequence': '05/04/2023', 'confidence': 0.9656428694725037, 'area': [1350, 212, 2255, 609]}, 
@@ -406,6 +428,7 @@ if __name__ == "__main__":
                                               'pays_d_origine': {'sequence': 'PAYS-BAS', 'confidence': 0.9839634895324707, 'area': [888, 1201, 2308, 1397]}, 
                                               'analyse': {'sequence': ['PVY', 'Jambe noire', 'PLRV', 'Rhizomanie'], 'confidence': 0.9789810180664062, 'area': [461, 1485, 1615, 3135]}, 
                                               'client_name': 'DRAAF SRAL CENTRE VAL DE LOIRE', 'contract_name': 'PDT - CONTRAT ELPV 2023 DRAAF SRAL CENTRE / FREDON', 'n_start': '', 'n_end': '', 'with_0': False}}}}
+    
     OCR_HELPER = json.load(open("CONFIG\OCR_config.json"))
 
 
