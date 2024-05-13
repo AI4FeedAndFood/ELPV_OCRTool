@@ -54,10 +54,6 @@
             "path" : "Order.ContractCode",
             "input": "ContractCode"
         },
-        "LegalCommitment" : {
-            "path" : "Order.Comment",
-            "input": "LegalCommitment"
-        },
         "PurchaseOrderReference" : {
             "path" : "Order.PurchaseOrderReference",
             "input": ["client_name", "DATE"],
@@ -91,6 +87,10 @@
         "PackageCode" : {
             "path" : "Order.Samples.Sample.SampleFractions.SampleFraction.InvoiceableItems.InvoiceableItem.PackageCode",
             "input": "PackageCode"
+        },
+        "LegalCommitment" : {
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP006",
+            "input": "LegalCommitment"
         },
         "DatePrelevement" : {
             "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.M005",

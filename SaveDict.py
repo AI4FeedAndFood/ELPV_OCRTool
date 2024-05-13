@@ -231,6 +231,12 @@ def convertDictToLIMS(stacked_samples_dict, lims_converter, analysis_lims):
             if value:
                 _update_dict(sample_XML_dict, value, keys_path)
         
+        # /!\ SPECIFIC FEATURE FOR ELPV LEGACY /!\
+        PurchaseOrderRef = _get_dict_value(sample_XML_dict, "Order.PurchaseOrderReference")
+        PurchaseOrderRef = PurchaseOrderRef + "".join(["#" for _ in range(46)]) 
+        PurchaseOrderRef = PurchaseOrderRef[:45]
+        _update_dict(sample_XML_dict, PurchaseOrderRef, "Order.PurchaseOrderReference")
+        
         # Warning if not client or contract
         if not _get_dict_value(sample_XML_dict, "Order.CustomerCode") or not _get_dict_value(sample_XML_dict, "Order.ContractCode"):
             customerRef =  _get_dict_value(sample_XML_dict, "Order.Samples.Sample.CustomerReference")
@@ -341,12 +347,14 @@ def saveToCopyFolder(save_folder, pdf_path, rename="", mode="same"):
         copyfile(pdf_path, f"{save_folder}/{new_name}")
 
 def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_helper, client_contract, xml_name="verified_XML"):
+    
     def _rename_sample(xml, added_number):
         xml = xml.decode("UTF-8")
         for number in added_number:
             if f'<Sample_{number} type="dict">' in xml:
                 xml = xml.replace(f'<Sample_{number} type="dict">', '<Sample type="dict">')
                 xml = xml.replace(f'</Sample_{number}>', '</Sample>')
+
         xml = xml.encode("UTF-8")
         return xml
 

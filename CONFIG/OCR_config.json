@@ -83,7 +83,7 @@
             "subregion" : [[0.45, 0.95], [0.2, 0.7]],
             "key_sentences" : [["72", "Parasite", "recherche"]],
             "relative_position" : [[[1,16], [-0.1,1.7]]],
-            "conditions" : ["list", {"path":"contract_analysis_path","sheet_name" : "analyse",  "column" :"Denomination", "mode":"multiple"}]
+            "conditions" : ["list", {"path":"contract_analysis_path", "sheet_name" : "analyse",  "column" :"Denomination", "mode":"multiple"}]
         }
     },
 
