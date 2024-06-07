@@ -56,11 +56,11 @@ def getAllImages(path):
         pdf_dict = {}
         for i, image in enumerate(new_images):
             pdf_dict[f"image_{i}"] = image
-        scan_dict[os.path.splitext(pdf)[0]] = pdf_dict
+        scan_dict[pdf] = pdf_dict
     
     for image in image_in_folder:
         new_image = np.array(cv2.imread(os.path.join(path,image)))
-        scan_dict[os.path.splitext(new_images)[0]] = {"image_0" : new_image}
+        scan_dict[new_images] = {"image_0" : new_image}
 
     return scan_dict
 

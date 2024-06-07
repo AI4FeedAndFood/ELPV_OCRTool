@@ -1,9 +1,11 @@
 import os
 import dicttoxml
 import json
+
 from shutil import copyfile
 from copy import deepcopy
 from datetime import datetime
+from PIL import Image
 
 def _update_dict(stack_dict, value, keys_path):
     keys_path = keys_path.split(".") if type(keys_path)==type("") else keys_path
@@ -75,8 +77,6 @@ def keepNeededFields(verified_dict, client_contract, model, to_keep_field=[], ad
         client_contract (_type_): _description_
         model (_type_): _description_
     """
-
-    added_field = added_field
 
     # dict for clean fields
     sample_clean_dict = {}
@@ -331,20 +331,33 @@ def mergeOrderSamples(stacked_samples_dict, merge_condition="Order.ContractCode"
 
     return stacked_merged_dict, added_number
 
-def saveToCopyFolder(save_folder, pdf_path, rename="", mode="same"):
+def saveToCopyFolder(save_folder, givenPath, scan_dict, verified_dict, rename="", mode="same", split_sheet=""):
+
     if save_folder:
+
         if not os.path.exists(save_folder):
             os.makedirs(save_folder)
 
-        base, extension = os.path.splitext(os.path.split(pdf_path)[1])
+        for pdf_name, im_array_dict in scan_dict.items():
+            pdf_path = os.path.join(givenPath, pdf_name)
 
-        if rename:
-            base=rename
+            base, extension = os.path.splitext(os.path.split(pdf_path)[1])
+
+            if rename:
+                base=rename
         
-        if mode == "same":
-            new_name = base+extension
+            if mode == "same":
+                new_name = base+extension
 
-        copyfile(pdf_path, f"{save_folder}/{new_name}")
+            if not split_sheet:
+                copyfile(pdf_path, f"{save_folder}/{new_name}")
+
+            else :
+                for sample, image_extract_dict in verified_dict[pdf_name].items():
+                    image = im_array_dict[image_extract_dict["IMAGE"]]
+                    new_name = image_extract_dict["EXTRACTION"][split_sheet]["sequence"] + extension
+                    im = Image.fromarray(image)
+                    im.save(os.path.join(save_folder, new_name))
 
 def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_helper, client_contract, xml_name="verified_XML"):
     

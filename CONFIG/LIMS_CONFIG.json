@@ -1,10 +1,23 @@
 {
     "TOOL_PATH" : {
-        "input_folder" : "",
+        "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1",
         "output_folder" : "",
-        "copy_folder" : "",
+        "copy_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1\\copy",
         "scan_email_sender" : "" 
     },
+
+    "MODELS" : ["Fredon", "SEMAE"],
+
+    "ADDED_FIELDS" : ["client_name", "contract_name", "n_start", "n_end", "with_0", "ref_echantillon"],
+    
+    "FOR_SAVE_FIELDS" : ["n_start", "n_end", "with_0"],
+    
+    "SAMPLE_MERGER" : "Order.ContractCode",
+
+    "PRODUCTCODE_DICT" : {
+        "Sol": "02288",
+        "Tubercule": "00071",
+        "Betterave": "01305"},
 
     "CLEAN_ZONE_NAMES" : {
         "N_d_echantillon" : "Numero d'echantillon",
@@ -18,18 +31,6 @@
         "analyse" : "Parasites",
         "pays_d_origine" : "Pays d'origine"
     },
-
-    "MODELS" : ["Fredon", "SEMAE"],
-
-    "ADDED_FIELDS" : ["client_name", "contract_name", "n_start", "n_end", "with_0", "ref_echantillon"],
-    "FOR_SAVE_FIELDS" : ["n_start", "n_end", "with_0"],
-    
-    "SAMPLE_MERGER" : "Order.ContractCode",
-
-    "PRODUCTCODE_DICT" : {
-        "Sol": "02288",
-        "Tubercule": "00071",
-        "Betterave": "01305"},
 
     "LIMS_CONVERTER" :   {
         "Nom" : {

@@ -42,6 +42,8 @@ def use_the_tool(folderPath, model="Fredon"):
     return scan_dict, pdfs_res_dict
 
 def checkboxes_for_analysis(analysis_list, found_analysis):
+    # Unpack singleton
+    found_analysis = [" ".join(analyse) if type(analyse) == type([]) else analyse for analyse in found_analysis]
     not_found = list(set(analysis_list)-set(found_analysis))
     found_col = [[sg.Checkbox(str(fanalyse), default=True, key=("ana", fanalyse))] for i, fanalyse in enumerate(found_analysis,1)]
     not_found_col = [[sg.Checkbox(str(nfanalyse), key=("ana", nfanalyse))] for i, nfanalyse in enumerate(not_found, len(found_analysis)+1)]
@@ -160,8 +162,12 @@ def ContractSuggestionWindow(values, mainWindow,  verif_event):
         location=(x, y), margins=(0, 0), finalize=True)
 
 def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysis_list, model, add=False):
-    FiledsLayout, ImageLayout, ClientContractLayout = _getFieldsLayout(image_dict, X_dim, Y_dim, analysis_list, model=model), _getImageLayout(image), _getClientContractLayout(image_dict, last_client_contract)
+    
+    FiledsLayout = _getFieldsLayout(image_dict, X_dim, Y_dim, analysis_list, model=model)
+    ImageLayout = _getImageLayout(image)
+    ClientContractLayout = _getClientContractLayout(image_dict, last_client_contract)
     n_start = image_dict['n_start'] if 'n_start' in list(image_dict.keys()) else ""
+    
     n_end = image_dict['n_end'] if 'n_end' in list(image_dict.keys()) else ""
     with_0 = image_dict["with_0"] if 'with_0' in list(image_dict.keys()) else False
 
@@ -193,6 +199,7 @@ def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysi
     
     MainLayout.append([sg.Column(ClientContractLayout + FiledsLayout , justification="r"), 
             sg.Column(ImageLayout, scrollable=True, justification="l", size=(int(X_dim*0.9), int(0.9*Y_dim)))])
+    
     return MainLayout
 
 def choice_overwrite_continue_popup(general_text, red_text, green_text):
@@ -528,7 +535,7 @@ def main():
                                             finalSaveDict(final_dict["RESPONSE"], xml_save_path, analysis_lims=MODEL_ANALYSIS, model=MODEL, lims_helper=LIMS_HELPER,
                                                             client_contract=CLIENT_CONTRACT)
                                             if LIMS_HELPER["TOOL_PATH"]["copy_folder"]:
-                                                saveToCopyFolder(LIMS_HELPER["TOOL_PATH"]["copy_folder"], os.path.join(givenPath, pdf_name+".pdf"), rename=pdf_name+"AA")
+                                                saveToCopyFolder(LIMS_HELPER["TOOL_PATH"]["copy_folder"], givenPath, scan_dict, final_dict["RESPONSE"], rename=pdf_name+"_copy", split_sheet="N_d_echantillon")
                                             VerificationWindow.close()
                                             return
                                         

@@ -20,6 +20,7 @@ CHECK_TEMPLATES = [Template(image_path=cross_checkbox_path, label="cross", color
 
 TABLE_TEMPLATE = [Template(image_path=table_checkbox_path, label="table", color=(0, 0, 0), matching_threshold=0.70, transform_list=TRANSFORM)]
     
+
 class Match :
     """
     A class defining an match. Usefull for detection

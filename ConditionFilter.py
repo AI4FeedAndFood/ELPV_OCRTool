@@ -103,7 +103,7 @@ def list_process(candidates, condition_dict, lists_df, min_jaro = 0.87):
     res_seq, match_indices = [], []
     if matched_elmts:
         if mode == "multiple": # Return all found elements sorted by index
-            res_seq, match_indices = [matched_elmt["element"] for matched_elmt in matched_elmts], [int(matched_elmt["index"]) for matched_elmt in matched_elmts]
+            res_seq, match_indices = [[matched_elmt["element"]] for matched_elmt in matched_elmts], [int(matched_elmt["index"]) for matched_elmt in matched_elmts]
         if mode == "single":
             matched_elmts = sorted(matched_elmts, key=lambda x: (-len(x["words"]), -x["jaro"], x["index"]), reverse=False)
             res_seq, match_indices = [matched_elmts[0]["element"]], [int(matched_elmts[0]["index"])]
@@ -371,9 +371,6 @@ def check_process(candidates, sense, checkboxes, lists_df, list_condition_dict):
             if res_seq and not res_seq in check_candidates:
                 check_candidates.append(res_seq)
                 candidates_indices.append(i_cand)
-
-        else:
-            candidates_indices, check_candidates = n_index, nearest_candidate
     
     return candidates_indices, check_candidates
 
