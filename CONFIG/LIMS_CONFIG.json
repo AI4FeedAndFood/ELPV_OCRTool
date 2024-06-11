@@ -90,7 +90,7 @@
             "input": "PackageCode"
         },
         "LegalCommitment" : {
-            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP006",
+            "path" : "Order.Samples.Sample.AdditionalFields.AdditionalField.IP007",
             "input": "LegalCommitment"
         },
         "DatePrelevement" : {

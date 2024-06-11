@@ -61,7 +61,7 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim, analysis_list, model="Fredon"):
     # Combo for Reference Echantillon
     default_ref = "Sol" if ((image_dict["variete"]["sequence"] == []) or model=="SEMAE") else "Tubercule"
 
-    pructcode_combo = [sg.Text("Référence échantillon : ", s=(25,1)),sg.Combo(list(product_codes.keys()), default_value=default_ref,
+    pructcode_combo = [sg.Text("Code produit : ", s=(25,1)),sg.Combo(list(product_codes.keys()), default_value=default_ref,
             key="code_produit", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))]
             
     lineLayout.append(pructcode_combo)
