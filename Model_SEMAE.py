@@ -359,16 +359,25 @@ def ProcessLandscape(image,image_name):
                     lower_frame.append(lower_merge)
                 upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
                 lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
-            cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,x2,y2
-            # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
-            zone_match = text_cell(full_img_OCR, cell_box, column=col)
 
-            res_dict_per_zone[col.name] = {
-                "sequence" : zone_match.res_seq,
-                "confidence" : float(zone_match.confidence),
-                "area" : cell_box,
-                "format" : format
-            }
+            try:
+                cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,x2,y2
+                # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
+                zone_match = text_cell(full_img_OCR, cell_box, column=col)
+
+                res_dict_per_zone[col.name] = {
+                    "sequence" : zone_match.res_seq,
+                    "confidence" : float(zone_match.confidence),
+                    "area" : cell_box,
+                    "format" : format
+                }
+            except:
+                res_dict_per_zone[col.name] = {
+                    "sequence" : [],
+                    "confidence" : 0,
+                    "area" : [],
+                    "format" : format
+                }
 
             print(col.name, " : ", zone_match.res_seq)
 

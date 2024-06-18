@@ -28,12 +28,13 @@ def extractFromMailBox(savePath, SenderEmailAddress, n_message_stop=10):
         # print(message.Subject, message.SenderEmailAddress, message.Unread)
         try:
             n_message+=1
-            if message.Unread:
-                for attachment in message.Attachments:
-                    attachment.SaveAsFile(os.path.join(savePath, str(attachment.FileName)))
-                    if message.Unread:
-                        message.Unread = False
-                    break
+            if message.SenderEmailAddress == SenderEmailAddress:
+                if message.Unread:
+                    for attachment in message.Attachments:
+                        attachment.SaveAsFile(os.path.join(savePath, str(attachment.FileName)))
+                        if message.Unread:
+                            message.Unread = False
+                        break
         except:
             pass
 
@@ -90,7 +91,12 @@ def TextCVTool(path, model, config = ["paddle", "structure", "en"], email_sender
     }
 
     if email_sender:
-        extractFromMailBox(path, SenderEmailAddress=email_sender, n_message_stop=10)
+        try:
+            extractFromMailBox(path, SenderEmailAddress=email_sender, n_message_stop=10)
+            print("PDF are loaded from mails")
+        except:
+            print("Error : PDF from mails ARE NOT downloaded, please do it manually")
+
 
     scan_dict = getAllImages(path)
 
