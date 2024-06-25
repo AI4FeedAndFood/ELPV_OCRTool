@@ -14,7 +14,7 @@ year = datetime.now().year
 
 from Model_Fredon import get_key_matches_and_OCR, ZoneMatch
 from ConditionFilter import condition_filter
-from ProcessPDF import binarized_image, HoughLines
+from ProcessPDF import binarized_image, HoughLines, get_format_and_adjusted_image, get_rectangles
 
 if 'AppData' in sys.executable:
     application_path = os.getcwd()
@@ -88,21 +88,25 @@ def get_contours(image, conditions_dictionnary):
     # plt.imshow(mask)
     # plt.show()
     contours,_ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  #Get contours
+
     if len(contours) == 0:
         print("No dot found")
         return [], None
     filtered_contours = _area_filter(contours, conditions_dictionnary) # Contours are selected
     return filtered_contours, mask
 
-def get_bounding_boxes(contours): # Finally get bounding box
+def get_bounding_boxes(contours, Yc, Xc): # Finally get bounding box
     rectangles = []
     centers  = []
     for contour in contours:
         rectangles.append(cv2.boundingRect(contour)) # Carry ((x,y), (width, height), rotation) with xy of the center
         M = cv2.moments(contour)
         if int(M["m00"])!=0:
-            centers.append([int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"])]) # More like a weighted center, tends to be more in the center of objects
-        # TO FIX
+            x = int(M["m10"] / M["m00"])
+            y = int(M["m01"] / M["m00"]) # More like a weighted center, tends to be more in the center of objects
+            if (y<Yc*0.05 or y>0.95*Yc) and (Xc*0.1<x<Xc*0.9):
+                centers.append([x,y])
+
     return list(sorted(zip(rectangles, centers), key=lambda x: (round(x[1][1]/100), round(x[1][0]/100)))) # Get boxes from upper left to upper right, the round by 100 is based on 3888*3888 images
 
 def single_object_drow_boxes(processed_image, rectangles_centers_list, color=(255,255,255), object = "Detection"):
@@ -123,25 +127,31 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     Returns:
         _type_: _description_
     """
+    # Binarized 
+    bin_image = binarized_image(cropped_image)
+    rectangles = get_rectangles(bin_image)
+
+    _, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, cropped_image, input_format="SEMAE", show=False)
 
     # Get dots thanks to HSV filtering
     HSV_im = HSV_image(cropped_image)
 
     contours, mask  = get_contours(HSV_im, conditions_dict)
-    # Binarized then delete dots
     cropped_image = binarized_image(cropped_image)
     cropped_image[mask == 255] = 255
 
-    dots = get_bounding_boxes(contours)
+    # Apply the rotation for image and dots according to the orientation
+    Yc, Xc = cropped_image.shape[:2]
+
+    dots = get_bounding_boxes(contours, Yc, Xc)
     if dots == []:
         print("PAS DE POINT TROUVE")
         return [], cropped_image, 1
+    else:
+        print(f"-> {len(dots)} POINT(S) TROUVES <-")
     _, centers = zip(*dots)
     centers = list(centers)
-    centers = [list(c) for c in centers]
-       
-    # Apply the rotation for image and dots according to the orientation
-    Yc, Xc = cropped_image.shape[:2]
+
     k_90 = 3
     if centers[0][1]<Yc/8: # Dots indicates if the paper is from top to bottom or bottom to top
         k_90 = 1
@@ -155,6 +165,9 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
         centers[i] = [max(int(new_dot[0]), 0), int(new_dot[1])] if k_90!=0 else centers[i]
     centers = sorted(centers, key=lambda x: x[1])
     final_image = np.rot90(cropped_image, k_90) # Minus for counterclockwise
+
+    # plt.imshow(final_image)
+    # plt.show()
 
     # bloc1, bloc2 = [], []
     # ref1, ref2 = centers[0][0], centers[-1][0] # Split along x axis
@@ -302,6 +315,7 @@ def ProcessLandscape(image,image_name):
     # plt.imshow(image)
     # plt.show()
     dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
+
     if dots == []:
         print("No dot")
         return {}
@@ -314,6 +328,7 @@ def ProcessLandscape(image,image_name):
         "vertical" : extend_lines(vertical_lines),
         "horizontal" : HoughLines(processed_image, mode="horizontal")
         }
+    
     # Clean the image from the scan to increase OCR performances
     processed_image = delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"])
     # delete_HoughLines(processed_image, lines["vertical"]+lines["horizontal"], show=True)
@@ -351,15 +366,24 @@ def ProcessLandscape(image,image_name):
             left_line, right_line = col.left_line, col.right_line
             if col.dict["merged"]:
                 x_left, x_right = left_line[0][0], right_line[0][0]
-                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.85, 0.75, 0.62, 0.5, 0.37, 0.25, 0.15]]
+                xy_left_mid_right = [[alpha*x_left + (1-alpha)*x_right, y_point] for alpha in [0.95, 0.75, 0.62, 0.5, 0.37, 0.25, 0.05]]
                 upper_frame, lower_frame = [], []
                 for position in xy_left_mid_right:
+                    # print(position)
                     upper_merge, lower_merge = get_frame_lines(position, lines["horizontal"], mode="horizontal", var_match=True)
                     upper_frame.append(upper_merge)
                     lower_frame.append(lower_merge)
-                upper_line = max(upper_frame, key=lambda x: x[0][1]) if upper_frame != [] else [] 
-                lower_line = min(lower_frame, key=lambda x: x[0][1]) if lower_frame != [] else []
-
+                # print("u :", upper_frame)
+                # print("l :", lower_frame)
+                try:
+                    upper_line = max(upper_frame, key=lambda x: x[0][1])
+                except:
+                    upper_line = []
+                try:
+                    lower_line = min(lower_frame, key=lambda x: x[0][1])
+                except:
+                    lower_line = []
+                    
             try:
                 cell_box = [int(left_line[0][0]), int(upper_line[0][1]), int(right_line[0][0]), int(lower_line[0][1])] # x,y,x2,y2
                 # delete_HoughLines(processed_image, [upper_line, lower_line, left_line, right_line], show=True)
@@ -378,13 +402,13 @@ def ProcessLandscape(image,image_name):
                     "area" : [],
                     "format" : format
                 }
+            print(col.name, " : ", res_dict_per_zone[col.name]["sequence"])
 
-            print(col.name, " : ", zone_match.res_seq)
 
         res_dict_per_zone["analyse"] ={
                 "sequence" : ["Rhizomanie"],
                 "confidence" : int(1),
-                "area" : cell_box,
+                "area" : [],
                 "format" : format
             }
         
@@ -402,9 +426,18 @@ def main(scan_dict):
         print("###### Traitement de :", pdf, " ######")
         pdfs_res_dict[pdf] = {}
         for i_image, (image_name, sample_image) in enumerate(list(images_dict.items())):
-            print(image_name)
+            print("------", image_name, "------")
             pdfs_res_dict[pdf] = ProcessLandscape(sample_image, image_name)
-    print(pdfs_res_dict)
+   # print(pdfs_res_dict)
     return pdfs_res_dict
+
+if __name__ == "__main__":
+    from LaunchTool import getAllImages
+
+    print("start")
+    path = r"C:\Users\CF6P\Desktop\ELPV\Data\test1"
+    scan_dict = getAllImages(path)
+    
+    main(scan_dict)
             
 
