@@ -161,7 +161,7 @@ def ContractSuggestionWindow(values, mainWindow,  verif_event):
     return sg.Window('Title', layout, no_titlebar=True, keep_on_top=True,
         location=(x, y), margins=(0, 0), finalize=True)
 
-def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysis_list, model, add=False):
+def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysis_list, model, add=False, sample_name=""):
     
     FiledsLayout = _getFieldsLayout(image_dict, X_dim, Y_dim, analysis_list, model=model)
     ImageLayout = _getImageLayout(image)
@@ -197,7 +197,12 @@ def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysi
          sg.Push()]
     ]
     
-    MainLayout.append([sg.Column(ClientContractLayout + FiledsLayout , justification="r"), 
+    PointCol = []
+    if "Point_" in sample_name:
+        point = sample_name.split("_")[-1]
+        PointCol.append([sg.Text(f"Echantillons détectés: {point}", s=(25,1))])
+    
+    MainLayout.append([sg.Column(PointCol + ClientContractLayout + FiledsLayout , justification="r"), 
             sg.Column(ImageLayout, scrollable=True, justification="l", size=(int(X_dim*0.9), int(0.9*Y_dim)))])
     
     return MainLayout
@@ -449,7 +454,7 @@ def main():
                                 image =  get_image_and_adapt_semae(scan_dict, pdf_name, sample_image_extract, MODEL)
                                 extract_dict = sample_image_extract["EXTRACTION"]
                                 # Create the new window
-                                VerificactionLayout = getMainLayout(extract_dict, image, X_dim, Y_dim, last_client_contract=last_client_contract, analysis_list=analysis_list, model=MODEL)
+                                VerificactionLayout = getMainLayout(extract_dict, image, X_dim, Y_dim, last_client_contract=last_client_contract, analysis_list=analysis_list, model=MODEL, sample_name=sample_name)
 
                                 VerificationWindow = sg.Window(f"PDF {pdf_name} - Commande ({sample_name})", 
                                                             VerificactionLayout, use_custom_titlebar=True, location=(X_loc, Y_loc), 

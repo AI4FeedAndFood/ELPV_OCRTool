@@ -412,7 +412,7 @@ def ProcessLandscape(image,image_name):
                 "format" : format
             }
         
-        samples_res_dict[f"sample_{i_point}"] = {"IMAGE" :image_name,
+        samples_res_dict[f"Point_{i_point+1}/{len(dots)}"] = {"IMAGE" :image_name,
                                                  "k_90": k_90,
                                                   "EXTRACTION" : res_dict_per_zone
                                                 }
@@ -427,7 +427,7 @@ def main(scan_dict):
         pdfs_res_dict[pdf] = {}
         for i_image, (image_name, sample_image) in enumerate(list(images_dict.items())):
             print("------", image_name, "------")
-            pdfs_res_dict[pdf] = ProcessLandscape(sample_image, image_name)
+            pdfs_res_dict[pdf].update(ProcessLandscape(sample_image, image_name))
    # print(pdfs_res_dict)
     return pdfs_res_dict
 
