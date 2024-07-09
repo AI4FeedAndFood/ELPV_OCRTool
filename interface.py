@@ -1,10 +1,11 @@
 import PySimpleGUI as sg
 import sys, os
-import shutil
 import numpy as np
 import io
 import json
 import pandas as pd
+import cv2
+
 from copy import deepcopy
 
 from screeninfo import get_monitors
@@ -59,7 +60,10 @@ def _getFieldsLayout(image_dict, X_dim, Y_dim, analysis_list, model="Fredon"):
     added_field = LIMS_HELPER["ADDED_FIELDS"]
 
     # Combo for Reference Echantillon
-    default_ref = "Sol" if ((image_dict["variete"]["sequence"] == []) or model=="SEMAE") else "Tubercule"
+    try:
+        default_ref = "Sol" if ((image_dict["variete"]["sequence"] == []) or model=="SEMAE") else "Tubercule"
+    except:
+        default_ref="Tubercule"
 
     pructcode_combo = [sg.Text("Code produit : ", s=(25,1)),sg.Combo(list(product_codes.keys()), default_value=default_ref,
             key="code_produit", expand_y=True, expand_x=False, size=(INPUT_LENGTH, 1))]
@@ -197,12 +201,12 @@ def getMainLayout(image_dict, image, X_dim, Y_dim, last_client_contract, analysi
          sg.Push()]
     ]
     
-    PointCol = []
+    HeadCol = [[sg.B("Combler par les champs précédent", s=40)]]
     if "Point_" in sample_name:
-        point = sample_name.split("_")[-1]
-        PointCol.append([sg.Text(f"Echantillons détectés: {point}", s=(25,1))])
+        point = " ".join(sample_name.split("_")[-1])
+        HeadCol.append([sg.Text(f"Echantillons détectés: {point}", s=(25,1))])
     
-    MainLayout.append([sg.Column(PointCol + ClientContractLayout + FiledsLayout , justification="r"), 
+    MainLayout.append([sg.Column(HeadCol + ClientContractLayout + FiledsLayout , justification="r"), 
             sg.Column(ImageLayout, scrollable=True, justification="l", size=(int(X_dim*0.9), int(0.9*Y_dim)))])
     
     return MainLayout
@@ -243,6 +247,8 @@ def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, Ver
         CONTRACT_LIST = sorted(list(CLIENT_CONTRACT[CLIENT_CONTRACT["ClientName"]== text]["ContractName"].unique()))
         VerificationWindow[("to_save", "contract_name")].update(disabled=False, background_color=sg.theme_input_background_color())
         VerificationWindow[("to_save", "client_name")].set_focus()
+        VerificationWindow[("to_save", "contract_name")].update(value="")
+
         
     if verif_event[1] == "contract_name":
         contract_text = verif_values[("to_save", "contract_name")]
@@ -265,11 +271,23 @@ def process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, Ver
     
     return  CONTRACT_LIST, verif_event, verif_values, VerificationWindow, ClientSuggestionW, contractSuggestionW
 
+def fill_with_last_res(last_values, current_values, VerificationWindow):
+    for key, value in last_values.items():
+        if key[0] == "zone" and not current_values[key]:
+            VerificationWindow[key].update(value=value)
+
 def get_image_and_adapt_semae(scan_dict, pdf_name, sample_image_extract, model):
     l_image = []
     for image in sample_image_extract["IMAGE"].split("+"):
         if model=="SEMAE":
-            image = np.rot90(scan_dict[pdf_name][image], sample_image_extract["k_90"]) # SEMAE rota get by the end
+            
+            image = np.rot90(scan_dict[pdf_name][image],-sample_image_extract["k_90"]) # SEMAE rota get by the end
+            height, width = image.shape[:2]
+            new_height = int(height * 3/4)
+            new_width = int(width * 3/4)
+            # Redimensionnement de l'image
+            image = cv2.resize(image, (new_width, new_height))
+
         else:
             image = scan_dict[pdf_name][image]
 
@@ -290,7 +308,7 @@ def get_image_and_adapt_semae(scan_dict, pdf_name, sample_image_extract, model):
         
     # return res_images, res_names          
 
-def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim):
+def manually_add_order(MainLayout, verified_dict, verif_values, last_verif_values, image_name, CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim):
     ClientSuggestionW_add, contractSuggestionW_add = None, None
     client_warning=False
     num=0
@@ -299,15 +317,23 @@ def manually_add_order(MainLayout, verified_dict, image_name, CONTRACT_LIST, CON
     VerificationWindow_add = sg.Window(f"Fiche {image_name_add}", 
                                 VerificactionLayout_add, use_custom_titlebar=True, location=(X_loc+30, Y_loc), 
                                 size=(X_dim, Y_dim), resizable=True, finalize=True, )
+    for key, value in verif_values.items():
+        if key[0] == "zone":
+            VerificationWindow_add[key].update(value=value)
+
     while True:
         add_windows, verif_event_add, verif_values_add = sg.read_all_windows()
         if verif_event_add == sg.WINDOW_CLOSED:
             VerificationWindow_add.close()
-            return None, None, None, None, None
+            return None, None
 
         if verif_event_add in [("to_save", "client_name"), '-AUTO_CLIENT-', ("to_save", "contract_name"), '-AUTO_CONTRACT-']:
             processed_add = process_contract_client_action(verif_event_add, verif_values_add, CONTRACT_LIST, VerificationWindow_add, ClientSuggestionW_add, contractSuggestionW_add)
             CONTRACT_LIST, verif_event_add, verif_values_add, VerificationWindow_add, ClientSuggestionW_add, contractSuggestionW_add = processed_add
+
+        if verif_event_add == "Combler par les champs précédent":
+            if last_verif_values:
+                fill_with_last_res(last_verif_values, verif_values, VerificationWindow_add)
 
         if verif_event_add == "Valider ->":
             if contractSuggestionW_add : contractSuggestionW_add.close()
@@ -414,6 +440,7 @@ def main():
                     CONTRACT_LIST_0 = list(CLIENT_CONTRACT["ContractName"].unique())
                     CONTRACT_LIST = CONTRACT_LIST_0
                     last_client_contract = ["", ""]
+                    last_verif_values = {}
                     MODEL_ANALYSIS = pd.read_excel(OCR_HELPER["PATHES"]["contract_analysis_path"], sheet_name="analyse")
                     analysis_list = MODEL_ANALYSIS["Denomination"].dropna().unique().tolist()
 
@@ -480,6 +507,10 @@ def main():
                                     processed = process_contract_client_action(verif_event, verif_values, CONTRACT_LIST, VerificationWindow, ClientSuggestionW, contractSuggestionW)
                                     CONTRACT_LIST, verif_event, verif_values, VerificationWindow, ClientSuggestionW, contractSuggestionW = processed
                                 
+                                if verif_event == "Combler par les champs précédent":
+                                    if last_verif_values:
+                                        fill_with_last_res(last_verif_values, verif_values, VerificationWindow)
+
                                 if verif_event == "Ajouter une commande manuellement":
                                     # Disable main sugg windows
                                     VerificationWindow.Disable()
@@ -489,9 +520,12 @@ def main():
                                     VerfifLayout_add = getMainLayout(extract_dict, image, X_dim, Y_dim, last_client_contract=last_client_contract, analysis_list=analysis_list, model=MODEL, add=True)
 
                                     new_CONTRACT_LIST = CONTRACT_LIST_0
-                                    verif_values_add, sample_name_add = manually_add_order(VerfifLayout_add, res_dict, sample_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
+                                    verif_values_add, sample_name_add = manually_add_order(VerfifLayout_add, res_dict, verif_values, last_verif_values, sample_name, new_CONTRACT_LIST, CONTRACT_LIST_0, X_loc, Y_loc, X_dim, Y_dim)
                                     if verif_values_add:
-                                        res_dict["RESPONSE"][pdf_name][sample_name_add] = deepcopy(res_dict["RESPONSE"][pdf_name][sample_name])
+                                        pos = list(res_dict["RESPONSE"][pdf_name].keys()).index(sample_name)
+                                        items = list(res_dict["RESPONSE"][pdf_name].items())
+                                        items.insert(pos, (sample_name_add, deepcopy(res_dict["RESPONSE"][pdf_name][sample_name])))
+                                        res_dict["RESPONSE"][pdf_name] = dict(items)
                                         runningSave(res_dict, res_save_path, verif_values_add, pdf_name, sample_name_add)
                                     
                                     VerificationWindow.Enable()
@@ -511,7 +545,7 @@ def main():
                                         n_place = (n_pdf, n_sample)  
 
                                 if verif_event == "Valider ->":
-                                    
+
                                     if contractSuggestionW : contractSuggestionW.close()
                                     if ClientSuggestionW : ClientSuggestionW.close()
                                     if (not verif_values[("to_save", "client_name")] in CLIENT_LIST or not verif_values[("to_save", "contract_name")] in CONTRACT_LIST_0) and not client_warning:
@@ -521,6 +555,7 @@ def main():
                                             client_warning=True
 
                                     last_client_contract = [verif_values[("to_save", "client_name")], verif_values[("to_save", "contract_name")]]
+                                    last_verif_values = verif_values
                                     # To fit the wanted "numero d'echantillon"
 
                                     # If not last image

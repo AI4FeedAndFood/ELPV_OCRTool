@@ -63,34 +63,35 @@ class Point:
         self.res_dict = {}
 
 def HSV_image(image):
-    blurred = cv2.GaussianBlur(image, (11,11), 0)
-    HSV_image = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
+    HSV_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     return HSV_image
 
 def _postprecess_mask(mask):
-    mask = cv2.erode(mask, None, iterations=2)
-    mask = cv2.dilate(mask, None, iterations=2)
+    mask = cv2.erode(mask, None, iterations=6)
+    mask = cv2.dilate(mask, None, iterations=6)
     return mask
 
-def get_contours(image, conditions_dictionnary):
+def get_contours(hsv, conditions_dictionnary):
     
     def _area_filter(res_contours, conditions_dictionnary):
         area_threshold = conditions_dictionnary["area_threshold"]
-        res_contours = [x for x in res_contours if cv2.contourArea(x)<area_threshold]
-        return res_contours
+        res_contours = [x for x in res_contours if 100<cv2.contourArea(x)<area_threshold]
+        return res_contours[:10] # Max number of contours
 
-    # upper mask (110-180)
-    lower_red = np.array([110,50,50])
-    upper_red = np.array([180,255,255])
-    mask1 = cv2.inRange(image, lower_red, upper_red)
+    # # upper mask (110-180)
+    # lower_red = np.array([0, 25, 20])
+    # upper_red = np.array([1, 255, 255])
+    # mask1 = cv2.inRange(hsv, lower_red, upper_red)
 
-    mask = _postprecess_mask(mask1) # Mask is processed
-    # plt.imshow(mask)
-    # plt.show()
+    lower_red = np.array([110, 25, 20])
+    upper_red = np.array([150, 255, 255])
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+
+    mask= _postprecess_mask(mask)
+
     contours,_ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)  #Get contours
 
     if len(contours) == 0:
-        print("No dot found")
         return [], None
     filtered_contours = _area_filter(contours, conditions_dictionnary) # Contours are selected
     return filtered_contours, mask
@@ -117,6 +118,12 @@ def single_object_drow_boxes(processed_image, rectangles_centers_list, color=(25
         cv2.putText(processed_image, f"{object}_{i}", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 3, color, 6)
     return processed_image 
 
+def rotate_image_90_degrees(image, times=1):
+    # Rotate the image by 90 degrees 'times' times
+    for _ in range(times):
+        image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+    return image
+
 def get_dots_and_final_image(cropped_image, conditions_dict):
     """_summary_
 
@@ -131,42 +138,52 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     bin_image = binarized_image(cropped_image)
     rectangles = get_rectangles(bin_image)
 
-    _, cropped_image = get_format_and_adjusted_image(bin_image, rectangles, cropped_image, input_format="SEMAE", show=False)
+    _, image = get_format_and_adjusted_image(bin_image, rectangles, cropped_image, input_format="SEMAE", show=False)
 
-    # Get dots thanks to HSV filtering
-    HSV_im = HSV_image(cropped_image)
+    hsv = HSV_image(image)
+    contours, mask = get_contours(hsv, conditions_dict)
 
-    contours, mask  = get_contours(HSV_im, conditions_dict)
-    cropped_image = binarized_image(cropped_image)
-    cropped_image[mask == 255] = 255
+    # Vérifier les coordonnées des points rouges
+    red_points = [cv2.boundingRect(c) for c in contours]
 
-    # Apply the rotation for image and dots according to the orientation
-    Yc, Xc = cropped_image.shape[:2]
-
-    dots = get_bounding_boxes(contours, Yc, Xc)
-    if dots == []:
-        print("PAS DE POINT TROUVE")
-        return [], cropped_image, 1
+    # Get the centers of the red points
+    if len(red_points) >= 1:
+        centers = [(x + w//2, y + h//2) for (x, y, w, h) in red_points]
     else:
-        print(f"-> {len(dots)} POINT(S) TROUVES <-")
-    _, centers = zip(*dots)
-    centers = list(centers)
+        centers = []
 
-    k_90 = 3
-    if centers[0][1]<Yc/8: # Dots indicates if the paper is from top to bottom or bottom to top
-        k_90 = 1
-    elif Yc<Xc:
-        k_90=0
-    # Apply the crop and rotate to centers
-    # angle = angle if inv else -angle
-    M_after_crop = cv2.getRotationMatrix2D((0,0), -90*k_90, 1) # Rotation matrix for centers       
-    for i, dot in enumerate(centers):
-        new_dot = np.matmul(np.array(dot)-np.array([Xc/2, Yc/2]), M_after_crop)[:2] + np.array([Yc/2, Xc/2])
-        centers[i] = [max(int(new_dot[0]), 0), int(new_dot[1])] if k_90!=0 else centers[i]
-    centers = sorted(centers, key=lambda x: x[1])
-    final_image = np.rot90(cropped_image, k_90) # Minus for counterclockwise
+    # Determine the position of the red points
+    if len(centers) > 0:
+        Yc, Xc = image.shape[:2]
+        k_90 = 0
+        if centers[0][1] < Yc / 8:  # Points are at the top
+            k_90 = 3
+        elif centers[0][1] > Yc * 7 / 8:  # Points are at the bottom
+            k_90 = 1
 
-    # plt.imshow(final_image)
+        # Rotate the image
+        rotated_image = rotate_image_90_degrees(image, k_90)
+        
+        # Adjust the points
+        for i, dot in enumerate(centers):
+            x, y = dot
+            if k_90 == 1:  # 90 degrees clockwise
+                new_x, new_y = Yc-y, x
+            elif k_90 == 2:  # 180 degrees
+                new_x, new_y = Xc - x, y
+            elif k_90 == 3:  # 270 degrees clockwise (or 90 degrees counterclockwise)
+                new_x, new_y = y, Xc - x
+            else:  # No rotation
+                new_x, new_y = x, y
+            centers[i] = [new_x, new_y]
+        
+        centers = sorted(centers, key=lambda x: x[1])
+            
+    else:
+        rotated_image = image
+
+    # print(centers)
+    # plt.imshow(rotated_image)
     # plt.show()
 
     # bloc1, bloc2 = [], []
@@ -179,7 +196,7 @@ def get_dots_and_final_image(cropped_image, conditions_dict):
     #         bloc2.append(dot)
     # dot_pairs = (bloc1, bloc2)
     
-    return centers, final_image, k_90
+    return centers, rotated_image, k_90
 
 def extend_lines(lines_list, mode="vertical"):
     """
@@ -315,10 +332,30 @@ def ProcessLandscape(image,image_name):
     # plt.imshow(image)
     # plt.show()
     dots, processed_image, k_90 =  get_dots_and_final_image(image, OCR_HELPER["landscape_HSV"])
+    samples_res_dict = {} 
 
     if dots == []:
         print("No dot")
-        return {}
+        for zone, key_points in OCR_HELPER[format].items():
+            res_dict_per_zone = {}
+            res_dict_per_zone[zone] = {
+                    "sequence" : [],
+                    "confidence" : 0,
+                    "area" : [],
+                    "format" : format
+                }
+            res_dict_per_zone["analyse"] ={
+                "sequence" : ["Rhizomanie"],
+                "confidence" : int(1),
+                "area" : [],
+                "format" : format
+            }
+            samples_res_dict[f"Point_Auncun point trouvé"] = {"IMAGE" :image_name,
+                                                 "k_90": k_90,
+                                                  "EXTRACTION" : res_dict_per_zone
+                                                }
+
+    print(f"{len(dots)} points trouvés")
     Y,X = processed_image.shape[:2]
     # Find lines in the scan
     vertical_lines = HoughLines(processed_image)
@@ -357,7 +394,6 @@ def ProcessLandscape(image,image_name):
             col.left_line, col.right_line = vert_frame_lines
         columns.append(col)
     
-    samples_res_dict = {}
     for i_point, point_position in enumerate(dots):
         _, y_point = point_position
         res_dict_per_zone = {}
@@ -412,7 +448,7 @@ def ProcessLandscape(image,image_name):
                 "format" : format
             }
         
-        samples_res_dict[f"Point_{i_point+1}/{len(dots)}"] = {"IMAGE" :image_name,
+        samples_res_dict[f"{image_name}_Point_{i_point+1}/{len(dots)}"] = {"IMAGE" :image_name,
                                                  "k_90": k_90,
                                                   "EXTRACTION" : res_dict_per_zone
                                                 }
@@ -428,7 +464,7 @@ def main(scan_dict):
         for i_image, (image_name, sample_image) in enumerate(list(images_dict.items())):
             print("------", image_name, "------")
             pdfs_res_dict[pdf].update(ProcessLandscape(sample_image, image_name))
-   # print(pdfs_res_dict)
+    print(pdfs_res_dict)
     return pdfs_res_dict
 
 if __name__ == "__main__":

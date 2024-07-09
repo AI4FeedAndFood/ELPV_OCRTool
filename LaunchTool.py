@@ -39,10 +39,11 @@ def extractFromMailBox(savePath, SenderEmailAddress, n_message_stop=10):
             pass
 
 def getAllImages(path):
-    def _get_all_images(path, extList=[".tiff", ".tif", ".png"]):
+    def _get_all_images(path, extList=[".tiff", ".tif", ".png", ".jpg"]):
         docs = os.listdir(path)
         pdf_in_folder = [file for file in docs if os.path.splitext(file)[1].lower() == ".pdf"]
         image_in_folder = [file for file in docs if os.path.splitext(file)[1].lower() in extList]
+        pdf_in_folder.reverse(), image_in_folder.reverse()
         return pdf_in_folder, image_in_folder
     
     pdf_in_folder, image_in_folder =  _get_all_images(path) # Return pathes
@@ -61,7 +62,7 @@ def getAllImages(path):
     
     for image in image_in_folder:
         new_image = np.array(cv2.imread(os.path.join(path,image)))
-        scan_dict[new_images] = {"image_0" : new_image}
+        scan_dict[image] = {"image_0" : new_image}
 
     return scan_dict
 
