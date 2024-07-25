@@ -343,7 +343,6 @@ def saveToCopyFolder(save_folder, givenPath, scan_dict, verified_dict, rename=""
 
             base, extension = os.path.splitext(os.path.split(pdf_path)[1])
 
-            print(rename)
             if rename:
                 base=rename
         
@@ -419,8 +418,6 @@ def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_help
             xml_save_copypath = os.path.join(XML_copy_folder, f"{sample_XML_num}.xml")
             with open(xml_save_copypath, 'w', encoding='utf8') as result_file:
                 result_file.write(xml.decode())
-
-
 
 if __name__ == "__main__":
     import pandas as pd
