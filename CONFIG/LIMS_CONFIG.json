@@ -2,7 +2,7 @@
     "TOOL_PATH" : {
         "input_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1",
         "output_folder" : "",
-        "copy_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\test1\\copy",
+        "copy_folder" : "C:\\Users\\CF6P\\Desktop\\ELPV\\Data\\copy",
         "scan_email_sender" : "" 
     },
 

@@ -343,10 +343,13 @@ def saveToCopyFolder(save_folder, givenPath, scan_dict, verified_dict, rename=""
 
             base, extension = os.path.splitext(os.path.split(pdf_path)[1])
 
+            print(rename)
             if rename:
                 base=rename
         
             if mode == "same":
+                if not extension.lower() in [".pdf", ".png", ".jpg", ".jpeg"]:
+                    extension=".pdf"
                 new_name = base+extension
 
             if not split_sheet:
@@ -359,7 +362,7 @@ def saveToCopyFolder(save_folder, givenPath, scan_dict, verified_dict, rename=""
                     im = Image.fromarray(image)
                     im.save(os.path.join(save_folder, new_name))
 
-def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_helper, client_contract, xml_name="verified_XML"):
+def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_helper, client_contract, xml_name="verified_XML", copy_path=""):
     
     def _rename_sample(xml, added_number):
         xml = xml.decode("UTF-8")
@@ -370,6 +373,10 @@ def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_help
 
         xml = xml.encode("UTF-8")
         return xml
+    # Make the copied XML folder if givent
+    if copy_path:
+        XML_copy_folder = os.path.join(copy_path, "copied_XMLs")
+        os.makedirs(os.path.join(copy_path, "copied_XMLs"), exist_ok=True)
 
     # For all sample to extract from pdfs, keep only relevant fields
     stacked_samples_dict = []
@@ -408,6 +415,12 @@ def finalSaveDict(verified_dict, xmls_save_path, analysis_lims, model, lims_help
         xml_save_path = os.path.join(xmls_save_path, f"{sample_XML_num}.xml")
         with open(xml_save_path, 'w', encoding='utf8') as result_file:
             result_file.write(xml.decode())
+        if copy_path:
+            xml_save_copypath = os.path.join(XML_copy_folder, f"{sample_XML_num}.xml")
+            with open(xml_save_copypath, 'w', encoding='utf8') as result_file:
+                result_file.write(xml.decode())
+
+
 
 if __name__ == "__main__":
     import pandas as pd

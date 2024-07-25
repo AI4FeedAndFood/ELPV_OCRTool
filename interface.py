@@ -573,9 +573,9 @@ def main():
                                         if choice == "OK":
                                             json_file.close() # Close the file
                                             finalSaveDict(final_dict["RESPONSE"], xml_save_path, analysis_lims=MODEL_ANALYSIS, model=MODEL, lims_helper=LIMS_HELPER,
-                                                            client_contract=CLIENT_CONTRACT)
+                                                            client_contract=CLIENT_CONTRACT, copy_path=LIMS_HELPER["TOOL_PATH"]["copy_folder"])
                                             if LIMS_HELPER["TOOL_PATH"]["copy_folder"]:
-                                                saveToCopyFolder(LIMS_HELPER["TOOL_PATH"]["copy_folder"], givenPath, scan_dict, final_dict["RESPONSE"], rename=pdf_name+"_copy", split_sheet="N_d_echantillon")
+                                                saveToCopyFolder(LIMS_HELPER["TOOL_PATH"]["copy_folder"], givenPath, scan_dict, final_dict["RESPONSE"], rename="copy_"+pdf_name, split_sheet="N_d_echantillon")
                                             VerificationWindow.close()
                                             return
                                         
