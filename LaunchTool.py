@@ -15,28 +15,55 @@ TESSCONFIG = [1, 6, whitelist, LANG]
 
 from ProcessPDF import PDF_to_images
 
-def extractFromMailBox(savePath, SenderEmailAddress, n_message_stop=10):
-
+def extractFromMailBox(savePath, SenderEmailAddress, mailbox_name="", n_message_stop=10):
+    """
+    Extracts and saves attachments from emails in a specified Outlook mailbox folder sent by a specific sender.
+    
+    Parameters:
+    - savePath (str): The directory path where attachments will be saved.
+    - SenderEmailAddress (str): The email address of the sender whose emails should be processed.
+    - mailbox_name (str, optional): The name of the specific mailbox to connect to. If not provided, uses the default mailbox.
+    - n_message_stop (int): The number of messages to process before stopping.
+    """
+    
+    # Create the save directory if it doesn't exist
+    os.makedirs(savePath, exist_ok=True)
+    
+    # Connect to Outlook
     outlook = win32com.client.Dispatch("Outlook.Application").GetNamespace("MAPI")
-    inbox = outlook.GetDefaultFolder(6) 
+    
+    # Access the specified mailbox or the default mailbox
+    if mailbox_name:
+        recipient = outlook.Folders[mailbox_name]
+        inbox = recipient.Folders["Boîte de réception"]
+    else:
+        inbox = outlook.GetDefaultFolder(6)  # 6 refers to the default Inbox folder
+    
+    # Retrieve all messages in the inbox
     messages = inbox.Items
-    messages.Sort("ReceivedTime", True)
-
+    messages.Sort("ReceivedTime", True)  # Sort messages by received time in descending order
+    
     n_message = 0
     while n_message <= n_message_stop:
-        message = messages[n_message]
-        # print(message.Subject, message.SenderEmailAddress, message.Unread)
         try:
-            n_message+=1
-            if message.SenderEmailAddress == SenderEmailAddress:
-                if message.Unread:
-                    for attachment in message.Attachments:
-                        attachment.SaveAsFile(os.path.join(savePath, str(attachment.FileName)))
-                        if message.Unread:
-                            message.Unread = False
-                        break
-        except:
-            pass
+            message = messages[n_message]
+            n_message += 1
+            
+            # Check if the message is from the specified sender and is unread
+            if message.SenderEmailAddress == SenderEmailAddress and message.Unread:
+                # Iterate through attachments in the message
+                for attachment in message.Attachments:
+                    # Save each attachment to the specified directory
+                    attachment.SaveAsFile(os.path.join(savePath, str(attachment.FileName)))
+                    # Mark the message as read after saving the attachment
+                    message.Unread = False
+                    # Process only the first attachment for this message
+                    break
+        except Exception as e:
+            # Print the error message for debugging purposes
+            print(f"An error occurred: {e}")
+            continue
+
 
 def getAllImages(path):
     def _get_all_images(path, extList=[".tiff", ".tif", ".png", ".jpg"]):
