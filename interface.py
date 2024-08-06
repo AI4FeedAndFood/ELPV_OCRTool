@@ -38,8 +38,8 @@ def fit_the_screen(X_loc):
         if X_loc<x+width:
             return int(0.95*width), int(0.95*height)
 
-def use_the_tool(folderPath, model="Fredon"):
-    scan_dict, pdfs_res_dict = TextCVTool(folderPath, model=model)
+def use_the_tool(folderPath, model="Fredon", sender_email=""):
+    scan_dict, pdfs_res_dict = TextCVTool(folderPath, model=model, sender_email=sender_email)
     return scan_dict, pdfs_res_dict
 
 def checkboxes_for_analysis(analysis_list, found_analysis):
@@ -418,7 +418,7 @@ def main():
 
                     print("_________ START _________\nAttendez la barre de chargement \nAppuyez sur ctrl+c dans le terminal pour interrompre")
                 
-                    scan_dict, res_dict = use_the_tool(givenPath, MODEL)
+                    scan_dict, res_dict = use_the_tool(givenPath, MODEL, sender_email=LIMS_HELPER["TOOL_PATH"]["scan_email_sender"])
 
                     print("_________ DONE _________")
 

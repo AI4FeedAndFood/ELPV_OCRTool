@@ -357,7 +357,7 @@ def saveToCopyFolder(save_folder, givenPath, scan_dict, verified_dict, rename=""
             else :
                 for sample, image_extract_dict in verified_dict[pdf_name].items():
                     image = im_array_dict[image_extract_dict["IMAGE"]]
-                    new_name = image_extract_dict["EXTRACTION"][split_sheet]["sequence"] + extension
+                    new_name = image_extract_dict["EXTRACTION"][split_sheet]["sequence"] + ".pdf"
                     im = Image.fromarray(image)
                     im.save(os.path.join(save_folder, new_name))
 
